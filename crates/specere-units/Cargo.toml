@@ -1,0 +1,27 @@
+[package]
+name = "specere-units"
+description = "SpecERE day-one add-units (speckit, filter-state, claude-code-hooks, otel-collector, ears-linter)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+toml.workspace = true
+sha2.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+walkdir.workspace = true
+time.workspace = true
+specere-core.workspace = true
+specere-manifest.workspace = true
+specere-markers.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

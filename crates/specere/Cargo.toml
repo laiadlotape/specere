@@ -1,0 +1,26 @@
+[package]
+name = "specere"
+description = "Spec Entropy Regulation Engine — composable Repo-SLAM scaffolding with first-class uninstall"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+
+[[bin]]
+name = "specere"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+specere-core.workspace = true
+specere-manifest.workspace = true
+specere-markers.workspace = true
+specere-units.workspace = true
+specere-telemetry.workspace = true

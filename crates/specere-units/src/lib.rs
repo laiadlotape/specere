@@ -1,0 +1,255 @@
+//! The day-one set of `AddUnit` implementations plus the top-level command
+//! dispatcher (`add`, `remove`, `status`, `verify`, `doctor`).
+
+use anyhow::{anyhow, Context};
+use specere_core::{AddUnit, Ctx, Owner};
+use specere_manifest::{record_to_unit_entry, sha256_file, Manifest};
+
+pub mod speckit;
+
+pub const SPECERE_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Return the `AddUnit` trait object for a given unit id.
+pub fn lookup(id: &str) -> Option<Box<dyn AddUnit>> {
+    match id {
+        "speckit" => Some(Box::new(speckit::Speckit)),
+        "filter-state" => Some(Box::new(stub::StubUnit {
+            id: "filter-state",
+            reason: "planned in 0.1.0 MVP; not yet implemented",
+        })),
+        "claude-code-hooks" => Some(Box::new(stub::StubUnit {
+            id: "claude-code-hooks",
+            reason: "planned in 0.1.0 MVP; not yet implemented",
+        })),
+        "otel-collector" => Some(Box::new(stub::StubUnit {
+            id: "otel-collector",
+            reason: "planned in 0.1.0 MVP; not yet implemented",
+        })),
+        "ears-linter" => Some(Box::new(stub::StubUnit {
+            id: "ears-linter",
+            reason: "planned in 0.1.0 MVP; not yet implemented",
+        })),
+        _ => None,
+    }
+}
+
+pub fn add(ctx: &Ctx, unit_id: &str, _flags: &[String]) -> anyhow::Result<()> {
+    let unit = lookup(unit_id).ok_or_else(|| {
+        anyhow!("unknown unit `{unit_id}`; run `specere status` to list installed ones")
+    })?;
+
+    let mut manifest = Manifest::load_or_init(&ctx.manifest_path(), SPECERE_VERSION)?;
+    if manifest.get(unit.id()).is_some() {
+        tracing::info!("unit `{}` already installed — no-op", unit.id());
+        return Ok(());
+    }
+
+    let plan = unit.preflight(ctx).context("preflight failed")?;
+    if ctx.dry_run() {
+        print_plan(&plan);
+        return Ok(());
+    }
+
+    let record = unit.install(ctx, &plan).context("install failed")?;
+    let entry = record_to_unit_entry(unit.id(), unit.pinned_version(), toml::Table::new(), record);
+    manifest.upsert(entry);
+    manifest.save(&ctx.manifest_path())?;
+
+    unit.postflight(ctx, &manifest.get(unit.id()).unwrap().clone_record())
+        .context("postflight failed")?;
+
+    tracing::info!("installed `{}` @ {}", unit.id(), unit.pinned_version());
+    Ok(())
+}
+
+pub fn remove(ctx: &Ctx, unit_id: &str, dry_run: bool, _force: bool) -> anyhow::Result<()> {
+    let unit = lookup(unit_id).ok_or_else(|| anyhow!("unknown unit `{unit_id}`"))?;
+    let mut manifest = Manifest::load_or_init(&ctx.manifest_path(), SPECERE_VERSION)?;
+    let Some(entry) = manifest.get(unit.id()).cloned() else {
+        return Err(anyhow!("unit `{}` is not installed", unit.id()));
+    };
+
+    if dry_run {
+        println!(
+            "Would remove unit `{}` (installed {}):",
+            entry.id, entry.installed_at
+        );
+        for f in &entry.files {
+            println!("  file   {}", f.path.display());
+        }
+        for m in &entry.markers {
+            println!("  marker {} [{}]", m.path.display(), m.unit_id);
+        }
+        for d in &entry.dirs {
+            println!("  dir    {}", d.display());
+        }
+        return Ok(());
+    }
+
+    let record = entry.clone_record();
+    unit.remove(ctx, &record).context("remove failed")?;
+
+    manifest.remove(unit.id());
+    manifest.save(&ctx.manifest_path())?;
+
+    tracing::info!("removed `{}`", unit.id());
+    Ok(())
+}
+
+pub fn status(ctx: &Ctx) -> anyhow::Result<()> {
+    let manifest = Manifest::load_or_init(&ctx.manifest_path(), SPECERE_VERSION)?;
+    if manifest.units.is_empty() {
+        println!("No SpecERE units installed in {}", ctx.repo().display());
+        return Ok(());
+    }
+    println!("SpecERE units installed in {}:", ctx.repo().display());
+    for u in &manifest.units {
+        println!(
+            "  {} @ {} ({} files, {} markers)",
+            u.id,
+            u.version,
+            u.files.len(),
+            u.markers.len()
+        );
+    }
+    Ok(())
+}
+
+pub fn verify(ctx: &Ctx) -> anyhow::Result<()> {
+    let manifest = Manifest::load_or_init(&ctx.manifest_path(), SPECERE_VERSION)?;
+    let mut drift = 0usize;
+    for u in &manifest.units {
+        for f in &u.files {
+            let abs = ctx.repo().join(&f.path);
+            if !abs.exists() {
+                println!("MISSING  [{}] {}", u.id, f.path.display());
+                drift += 1;
+                continue;
+            }
+            let actual = sha256_file(&abs)?;
+            if actual != f.sha256_post && f.owner == Owner::Specere {
+                println!("DRIFTED  [{}] {}", u.id, f.path.display());
+                drift += 1;
+            }
+        }
+    }
+    if drift == 0 {
+        println!("No drift.");
+    } else {
+        println!("{drift} drift entries.");
+    }
+    Ok(())
+}
+
+pub fn doctor(ctx: &Ctx) -> anyhow::Result<()> {
+    println!("SpecERE doctor — target: {}", ctx.repo().display());
+    check("git", &["--version"]);
+    check("uvx", &["--version"]);
+    check("cargo", &["--version"]);
+    let manifest_exists = ctx.manifest_path().exists();
+    println!(
+        "  manifest   {}",
+        if manifest_exists { "present" } else { "absent" }
+    );
+    Ok(())
+}
+
+fn check(program: &str, args: &[&str]) {
+    match std::process::Command::new(program).args(args).output() {
+        Ok(out) if out.status.success() => {
+            let v = String::from_utf8_lossy(&out.stdout);
+            println!("  {:10} OK  {}", program, v.lines().next().unwrap_or(""));
+        }
+        Ok(_) => println!("  {:10} FAIL", program),
+        Err(_) => println!("  {:10} MISSING", program),
+    }
+}
+
+fn print_plan(plan: &specere_core::Plan) {
+    println!("Plan:");
+    for op in &plan.ops {
+        use specere_core::PlanOp::*;
+        match op {
+            WriteFile { path, summary } => println!("  + write   {} ({})", path.display(), summary),
+            UpsertMarker { path, block_id } => {
+                println!("  ~ marker  {} [{}]", path.display(), block_id)
+            }
+            RunCommand { program, args } => println!("  $ {} {}", program, args.join(" ")),
+            AppendLines { path, lines } => {
+                println!("  >> append {} ({} lines)", path.display(), lines.len())
+            }
+            CreateDir { path } => println!("  + mkdir   {}", path.display()),
+        }
+    }
+}
+
+/// Helper on `UnitEntry` to project back to a `Record` for `remove`.
+trait UnitEntryExt {
+    fn clone_record(&self) -> specere_core::Record;
+}
+
+impl UnitEntryExt for specere_manifest::UnitEntry {
+    fn clone_record(&self) -> specere_core::Record {
+        specere_core::Record {
+            files: self
+                .files
+                .iter()
+                .map(|f| specere_core::FileEntry {
+                    path: f.path.clone(),
+                    sha256_post: f.sha256_post.clone(),
+                    owner: f.owner,
+                    role: f.role.clone(),
+                })
+                .collect(),
+            markers: self
+                .markers
+                .iter()
+                .map(|m| specere_core::MarkerEntry {
+                    path: m.path.clone(),
+                    unit_id: m.unit_id.clone(),
+                    block_id: m.block_id.clone(),
+                    sha256: m.sha256.clone(),
+                })
+                .collect(),
+            dirs: self.dirs.clone(),
+            notes: self.notes.clone(),
+        }
+    }
+}
+
+mod stub {
+    use specere_core::{AddUnit, Ctx, Plan, Record, Result};
+
+    pub struct StubUnit {
+        pub id: &'static str,
+        pub reason: &'static str,
+    }
+
+    impl AddUnit for StubUnit {
+        fn id(&self) -> &'static str {
+            self.id
+        }
+        fn pinned_version(&self) -> &'static str {
+            "unimplemented"
+        }
+        fn preflight(&self, _ctx: &Ctx) -> Result<Plan> {
+            Err(specere_core::Error::Other(anyhow::anyhow!(
+                "unit `{}` is not yet implemented: {}",
+                self.id,
+                self.reason
+            )))
+        }
+        fn install(&self, _ctx: &Ctx, _plan: &Plan) -> Result<Record> {
+            Err(specere_core::Error::Other(anyhow::anyhow!(
+                "unit `{}` is not yet implemented",
+                self.id
+            )))
+        }
+        fn remove(&self, _ctx: &Ctx, _record: &Record) -> Result<()> {
+            Err(specere_core::Error::Other(anyhow::anyhow!(
+                "unit `{}` is not yet implemented",
+                self.id
+            )))
+        }
+    }
+}

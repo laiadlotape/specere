@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/specere",
+    "crates/specere-core",
+    "crates/specere-units",
+    "crates/specere-manifest",
+    "crates/specere-markers",
+    "crates/specere-telemetry",
+]
+
+[workspace.package]
+version = "0.1.0-dev"
+edition = "2021"
+rust-version = "1.78"
+authors = ["laiadlotape"]
+license = "Apache-2.0"
+repository = "https://github.com/laiadlotape/specere"
+homepage = "https://github.com/laiadlotape/specere"
+readme = "README.md"
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+sha2 = "0.10"
+hex = "0.4"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+walkdir = "2"
+tempfile = "3"
+
+specere-core = { path = "crates/specere-core", version = "0.1.0-dev" }
+specere-units = { path = "crates/specere-units", version = "0.1.0-dev" }
+specere-manifest = { path = "crates/specere-manifest", version = "0.1.0-dev" }
+specere-markers = { path = "crates/specere-markers", version = "0.1.0-dev" }
+specere-telemetry = { path = "crates/specere-telemetry", version = "0.1.0-dev" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
