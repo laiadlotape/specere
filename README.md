@@ -39,8 +39,8 @@ This uninstall-first design is SpecERE's core UX differentiator versus SpecKit, 
 | Phase 0 — doc rectification       | README / CONTRIBUTING / CHANGELOG aligned to pivot           | ✅ Shipped (2026-04-18) |
 | Phase 1 — bugfix release `v0.2.0` | Drop `--no-git`, SHA-diff gate, first `after_implement` hook, marker-fenced `.gitignore`, bit-identical remove, parse-safety | ✅ Merged (PR #2, 2026-04-18) — 9 FRs, 37/37 tests green on Linux/macOS/Windows; v0.2.0 tag pending release-infra |
 | Phase 2 — native units            | All 5 MVP units implemented end-to-end                       | ✅ Shipped (2026-04-18) — PRs #19–#23; all 5 units real; `specere init` composes the full scaffold; 65/65 tests cross-platform |
-| Phase 3 — observe pipeline        | Embedded OTLP receiver + `specere-observe` workflow          | ⏳ Next (see [`docs/upcoming.md`](docs/upcoming.md)) |
-| Phase 4 — filter engine           | Rust port of the ReSearch prototype's three Bayesian filters | ⏳ Planned |
+| Phase 3 — observe pipeline        | Embedded OTLP receiver + `specere-observe` workflow          | ✅ Main track shipped (2026-04-18) — PRs #32–#36; OTLP/HTTP + SQLite event store + 13 workflow-span hooks; 99/99 tests. gRPC receiver on :4317 queued as [#34](https://github.com/laiadlotape/specere/issues/34). |
+| Phase 4 — filter engine           | Rust port of the ReSearch prototype's three Bayesian filters | ⏳ Next (see [`docs/upcoming.md`](docs/upcoming.md)) |
 | Phase 5 — motion-model calibration| `specere calibrate from-git`                                 | ⏳ Planned |
 | Phase 6 — cross-session persistence | Posterior survives across sessions                         | ⏳ Planned |
 | Phase 7 — v1.0.0 release          | Final tear-down-and-rebuild dogfood on ReSearch              | ⏳ Planned |

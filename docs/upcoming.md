@@ -6,19 +6,32 @@
 
 ## Priority queue (highest first)
 
-### 1. `phase-3-observe-pipeline` — `specere serve` + persisted events
+### 1. `phase-4-filter-engine` — per-spec posterior over agent telemetry
 
-- **Why it's next.** Builds on Phase 2's `otel-collector` unit (shipped via PR #21) to stand up a real embedded OTLP receiver. The \`.specere/otel-config.yml\` scaffolded today is waiting for a binary that honours it.
-- **Deliverables.** `crates/specere-telemetry` gains a `tonic` gRPC server on `localhost:4317`, an `axum` HTTP server on `:4318`, SQLite + JSONL event store, `specere serve` + `specere observe record` + `specere observe query` commands, and the `specere-observe` workflow's OTel-span-around-each-step wrapping.
-- **Phase mapping.** `docs/specere_v1.md §5.P3` (FR-P3-001 … FR-P3-006).
-- **Workflow.** Per `docs/contributing-via-issues.md`, open a parent issue + sub-issues (likely one per deliverable above) when work starts.
+- **Why it's next.** Phase 3 shipped the event stream; Phase 4 consumes it. Rust port of ReSearch's `prototype/mini_specs/filter.py` (per-spec HMM + factor-graph BP + RBPF escape valve). Produces `.specere/posterior.toml` — the live spec-belief surface that the rest of the v1.0 vision hangs on.
+- **Deliverables.** New `specere-filter` crate. `specere filter run` consumes SQLite event store → advances filter → writes posterior. `specere filter status` reads posterior and prints per-spec belief table (sorted by entropy). Per-spec coupling graph loaded from `.specere/sensor-map.toml` (no auto-inference in v1).
+- **Phase mapping.** `docs/specere_v1.md §5.P4` (FR-P4-001 … FR-P4-006).
+- **Workflow.** Per `docs/contributing-via-issues.md`. Sub-issues likely split per filter family (PerSpecHMM → FactorGraphBP → RBPF) so each lands testable against the ReSearch prototype's Gate-A scenario.
+
+### 2. `phase-3-follow-up-grpc` — OTLP/gRPC receiver (#34)
+
+- **Tracked at:** [issue #34](https://github.com/laiadlotape/specere/issues/34) (split from #30 during Phase 3 re-plan).
+- **Deliverables.** Add `tonic` gRPC server on :4317 via `opentelemetry-proto` generated types. `specere serve` starts both receivers concurrently via `tokio::try_join!`.
+- **Why deferred.** Phase 3 scope-growth trigger fired when adding tonic + opentelemetry-proto to the same PR as axum HTTP; clean split to keep `#30`'s scope under the 600 LoC ceiling. HTTP half is live; gRPC is the remaining half of FR-P3-001.
+- **Workflow.** Single issue → single PR; no sub-issues needed.
 
 ## Beyond the immediate queue
 
-Phases 4–7 (filter engine, motion-model calibration, cross-session persistence, v1.0.0 dogfood) remain as in the master plan. They are not queued here because Phases 2 and 3 gate them.
+Phases 5–7 (motion-model calibration, cross-session persistence, v1.0.0 dogfood) remain as in the master plan.
 
 ## Recently closed
 
+- **phase-3-observe-pipeline main track** (2026-04-18, parent [#27](https://github.com/laiadlotape/specere/issues/27)) — event pipeline live; execution plan archived at [`docs/history/phase3-execution-plan.md`](history/phase3-execution-plan.md).
+  - [#28](https://github.com/laiadlotape/specere/issues/28) event store JSONL + CLI (PR #32) — `specere observe record/query`.
+  - [#29](https://github.com/laiadlotape/specere/issues/29) SQLite backend + WAL (PR #33) — primary store; JSONL mirror.
+  - [#30](https://github.com/laiadlotape/specere/issues/30) OTLP/HTTP receiver + `specere serve` (PR #35).
+  - [#31](https://github.com/laiadlotape/specere/issues/31) workflow-span hooks for all 7 verbs (PR #36).
+  - gRPC receiver queued as [#34](https://github.com/laiadlotape/specere/issues/34) (Phase-3-follow-up priority 2).
 - **phase-2-native-units** (2026-04-18, parent [#11](https://github.com/laiadlotape/specere/issues/11)) — all 5 MVP units real; execution plan archived at [`docs/history/phase2-execution-plan.md`](history/phase2-execution-plan.md).
   - [#12](https://github.com/laiadlotape/specere/issues/12) filter-state (PR #19) — `.specere/` skeleton + gitignore allowlist.
   - [#16](https://github.com/laiadlotape/specere/issues/16) speckit orphan detector (PR #20) — `Speckit::preflight` + `specere doctor --clean-orphans`.
