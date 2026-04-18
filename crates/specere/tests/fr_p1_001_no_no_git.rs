@@ -11,6 +11,7 @@ fn add_speckit_dry_run_on_git_repo_omits_no_git_flag() {
     let repo = TempRepo::new();
     let out = repo
         .run_specere(&["--dry-run", "add", "speckit"])
+        .env("SPECERE_TEST_SKIP_UVX", "1")
         .output()
         .expect("spawn specere");
     let stdout = String::from_utf8_lossy(&out.stdout);
@@ -34,6 +35,7 @@ fn add_speckit_dry_run_on_non_git_repo_includes_no_git_flag() {
     let repo = TempRepo::new_non_git();
     let out = repo
         .run_specere(&["--dry-run", "add", "speckit"])
+        .env("SPECERE_TEST_SKIP_UVX", "1")
         .output()
         .expect("spawn specere");
     let stdout = String::from_utf8_lossy(&out.stdout);
