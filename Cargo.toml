@@ -48,6 +48,7 @@ prost = "0.14"
 tokio-stream = { version = "0.1", features = ["net"] }
 ndarray = "0.16"
 rand = "0.8"
+fs2 = "0.4"
 
 specere-core = { path = "crates/specere-core", version = "0.4.0" }
 specere-units = { path = "crates/specere-units", version = "0.4.0" }

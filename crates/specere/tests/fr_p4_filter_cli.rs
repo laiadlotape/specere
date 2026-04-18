@@ -235,6 +235,79 @@ fn filter_status_hints_on_empty_posterior() {
 }
 
 #[test]
+fn filter_run_serialises_concurrent_invocations() {
+    // Issue #50 regression — an advisory exclusive lock on `.specere/filter.lock`
+    // makes concurrent `filter run` queue instead of one losing the atomic-write
+    // race. Both must exit 0; final posterior is intact; exactly one
+    // `filter.lock` sidecar remains on disk.
+    let repo = TempRepo::new();
+    seed_sensor_map(&repo);
+    for _ in 0..5 {
+        record_event(&repo, "FR-001", "pass");
+    }
+
+    let bin = std::path::PathBuf::from(env!("CARGO_BIN_EXE_specere"));
+    let repo_path = repo.path().to_path_buf();
+
+    let launch = |bin: std::path::PathBuf, repo: std::path::PathBuf| {
+        std::thread::spawn(move || {
+            std::process::Command::new(&bin)
+                .args(["--repo"])
+                .arg(&repo)
+                .args(["filter", "run"])
+                .output()
+                .expect("spawn failed")
+        })
+    };
+    let h1 = launch(bin.clone(), repo_path.clone());
+    let h2 = launch(bin, repo_path);
+    let o1 = h1.join().unwrap();
+    let o2 = h2.join().unwrap();
+
+    assert!(
+        o1.status.success() && o2.status.success(),
+        "concurrent filter runs should both succeed with advisory lock.\n\
+         o1 stdout: {}\n  stderr: {}\n\
+         o2 stdout: {}\n  stderr: {}",
+        String::from_utf8_lossy(&o1.stdout),
+        String::from_utf8_lossy(&o1.stderr),
+        String::from_utf8_lossy(&o2.stdout),
+        String::from_utf8_lossy(&o2.stderr),
+    );
+
+    let posterior = std::fs::read_to_string(repo.abs(".specere/posterior.toml")).unwrap();
+    let p: specere_filter::Posterior = toml::from_str(&posterior).unwrap();
+    // seed_sensor_map declares FR-001 + FR-002 → two entries, one per spec.
+    // The concern here is that concurrent writes didn't corrupt anything.
+    assert!(p.entries.iter().any(|e| e.spec_id == "FR-001"));
+    assert!(p.entries.iter().any(|e| e.spec_id == "FR-002"));
+    // Lock file exists after both processes finish — it's reused across runs.
+    assert!(repo.abs(".specere/filter.lock").exists());
+}
+
+#[test]
+fn filter_run_tolerates_pre_existing_placeholder_posterior() {
+    // Dogfood finding D-05 regression — filter-state's placeholder
+    // posterior.toml (comment header + schema_version, no `entries` yet)
+    // must still deserialise. Pre-v0.5.0 this failed with "missing field
+    // `entries`"; fixed by `#[serde(default)]` on Posterior::entries.
+    let repo = TempRepo::new();
+    seed_sensor_map(&repo);
+    // Emulate the unit's placeholder shape pre-fix (without `entries = []`).
+    std::fs::create_dir_all(repo.abs(".specere")).unwrap();
+    std::fs::write(
+        repo.abs(".specere/posterior.toml"),
+        "# placeholder from an older install\nschema_version = 1\n",
+    )
+    .unwrap();
+    record_event(&repo, "FR-001", "pass");
+    repo.run_specere(&["filter", "run"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("processed 1 event"));
+}
+
+#[test]
 fn filter_run_cursor_advances_to_max_not_last_iteration_ts() {
     // Regression for the manual-test M-21 finding: when JSONL events arrive
     // out-of-order (e.g. a backfilled late-dated event appended after newer

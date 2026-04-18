@@ -14,14 +14,21 @@ const UNIT_ID: &str = "filter-state";
 const EVENTS_SQLITE_CONTENT: &[u8] = b"";
 
 const POSTERIOR_TOML_CONTENT: &str = concat!(
-    "# SpecERE filter posterior. Phase 4 populates per-spec entries below.\n",
+    "# SpecERE filter posterior — populated by `specere filter run`.\n",
+    "# Fields here are owned by the filter engine (Phase 4); hand-edits\n",
+    "# will be overwritten on the next `run`.\n",
     "schema_version = 1\n",
+    "entries = []\n",
 );
 
 const SENSOR_MAP_TOML_CONTENT: &str = concat!(
     "# SpecERE sensor map — Repo-SLAM sensor channel registry.\n",
     "#\n",
     "# SpecERE-native (10-rule #5). Populated by `specere-adopt` or by hand.\n",
+    "#\n",
+    "# See docs/filter.md for the full schema; quick-start:\n",
+    "#   [specs]\n",
+    "#   \"FR-001\" = { support = [\"src/a.rs\", \"src/b.rs\"] }\n",
     "#\n",
     "# Channels (see docs/analysis/core_theory.md §3 in ReSearch):\n",
     "#   A = test / contract measurements\n",
@@ -30,6 +37,9 @@ const SENSOR_MAP_TOML_CONTENT: &str = concat!(
     "#   D = invariants / PBT / mutation\n",
     "\n",
     "schema_version = 1\n",
+    "\n",
+    "[specs]\n",
+    "# (empty — add entries above before running `specere filter run`)\n",
     "\n",
     "[channels]\n",
     "# (empty — populated per-spec as the sensor array grows)\n",

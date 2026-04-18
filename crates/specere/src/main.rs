@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 /// SpecERE — Spec Entropy Regulation Engine.
@@ -103,6 +103,29 @@ enum Command {
     Filter {
         #[command(subcommand)]
         kind: FilterKind,
+    },
+    /// Learn filter parameters from repo history. Phase 5.
+    Calibrate {
+        #[command(subcommand)]
+        kind: CalibrateKind,
+    },
+}
+
+#[derive(Subcommand)]
+enum CalibrateKind {
+    /// Walk `git log` and propose `[coupling]` edges based on co-modification
+    /// counts. Reads `[specs]` from sensor-map.toml; prints a TOML snippet to
+    /// stdout that the user can paste into `.specere/sensor-map.toml`.
+    FromGit {
+        /// Override the sensor-map path (default: `.specere/sensor-map.toml`).
+        #[arg(long)]
+        sensor_map: Option<PathBuf>,
+        /// How many most-recent commits to analyse. Default 500.
+        #[arg(long, default_value_t = 500)]
+        max_commits: usize,
+        /// Minimum co-modification count for an edge to be proposed. Default 3.
+        #[arg(long, default_value_t = 3)]
+        min_commits: usize,
     },
 }
 
@@ -270,6 +293,13 @@ fn main() -> Result<()> {
                 posterior,
             } => run_filter_status(&ctx, &sort, &format, posterior),
         },
+        Command::Calibrate { kind } => match kind {
+            CalibrateKind::FromGit {
+                sensor_map,
+                max_commits,
+                min_commits,
+            } => run_calibrate_from_git(&ctx, sensor_map, max_commits, min_commits),
+        },
     };
 
     if let Err(e) = result {
@@ -397,6 +427,27 @@ fn run_filter_run(
     let specs = specere_filter::load_specs(&sensor_map_path)?;
     let coupling = specere_filter::CouplingGraph::load(&sensor_map_path)?;
     let motion = specere_filter::Motion::prototype_defaults();
+
+    // Issue #50 — advisory exclusive lock on `.specere/filter.lock` so concurrent
+    // `filter run` invocations queue instead of racing the atomic-write path.
+    // `fs2::FileExt::lock_exclusive` blocks until the lock is acquired; the
+    // lock releases automatically when the file handle drops.
+    let lock_path = posterior_path
+        .parent()
+        .map(|p| p.join("filter.lock"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".specere/filter.lock"));
+    if let Some(parent) = lock_path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+    }
+    let lock_file = std::fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(&lock_path)
+        .with_context(|| format!("open advisory lock at {}", lock_path.display()))?;
+    fs2::FileExt::lock_exclusive(&lock_file)
+        .with_context(|| format!("acquire advisory lock at {}", lock_path.display()))?;
 
     let mut existing = specere_filter::Posterior::load_or_default(&posterior_path)?;
     let cursor = existing.cursor.clone();
@@ -609,6 +660,52 @@ fn sort_entries(entries: &mut [specere_filter::Entry], sort: &str) -> Result<()>
             o.reverse()
         }
     });
+    Ok(())
+}
+
+fn run_calibrate_from_git(
+    ctx: &specere_core::Ctx,
+    sensor_map: Option<PathBuf>,
+    max_commits: usize,
+    min_commits: usize,
+) -> Result<()> {
+    let sensor_map_path = sensor_map.unwrap_or_else(|| ctx.repo().join(".specere/sensor-map.toml"));
+    let specs = specere_filter::load_specs(&sensor_map_path)?;
+    let opts = specere_filter::CalibrateOpts {
+        max_commits: Some(max_commits),
+        min_commits,
+    };
+    let report = specere_filter::calibrate_from_git(ctx.repo(), &specs, &opts)?;
+
+    // Write the TOML snippet to stdout; summary + hints to stderr so the
+    // caller can redirect stdout straight into their sensor-map.toml edit.
+    eprintln!(
+        "specere calibrate: analysed {} commit(s); {} touched a tracked spec",
+        report.commits_analysed, report.commits_with_spec_activity
+    );
+    if !report.spec_activity.is_empty() {
+        eprintln!("  per-spec touch counts:");
+        for (sid, n) in &report.spec_activity {
+            eprintln!("    {sid:<32} {n}");
+        }
+    }
+    if report.edges.is_empty() {
+        eprintln!(
+            "  no coupling edges proposed (raise --max-commits or lower --min-commits to soften the threshold)"
+        );
+    } else {
+        eprintln!(
+            "  {} edge(s) proposed; paste the snippet below into `.specere/sensor-map.toml`",
+            report.edges.len()
+        );
+    }
+    if !report.dropped_cycle_edges.is_empty() {
+        eprintln!(
+            "  {} edge(s) dropped because they would have closed a cycle (see snippet for detail)",
+            report.dropped_cycle_edges.len()
+        );
+    }
+    println!("{}", report.to_toml_snippet());
     Ok(())
 }
 
