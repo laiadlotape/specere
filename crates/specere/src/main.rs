@@ -81,8 +81,52 @@ enum Command {
         #[arg(long)]
         clean_orphans: bool,
     },
-    /// Emit telemetry records from a hook invocation.
-    Observe,
+    /// Record or query telemetry events. Issue #28 / FR-P3-004.
+    Observe {
+        #[command(subcommand)]
+        kind: ObserveKind,
+    },
+}
+
+#[derive(Subcommand)]
+enum ObserveKind {
+    /// Append one event to `.specere/events.jsonl`. Typically invoked from a
+    /// hook in `.specify/extensions.yml` (e.g. `after_implement`).
+    Record {
+        /// Slash-command verb or CLI source name (e.g. `implement`).
+        #[arg(long)]
+        source: String,
+        /// Feature directory the event belongs to (from SpecKit).
+        #[arg(long)]
+        feature_dir: Option<PathBuf>,
+        /// OTLP signal class: `traces` (default), `logs`, or `metrics`.
+        #[arg(long, default_value = "traces")]
+        signal: String,
+        /// Human-readable name for the span / record. Defaults to `source`.
+        #[arg(long)]
+        name: Option<String>,
+        /// Repeatable `key=value` attribute pairs (gen_ai.*, specere.*, ...).
+        #[arg(long = "attr", value_name = "KEY=VALUE", num_args = 0..)]
+        attrs: Vec<String>,
+    },
+    /// Read events back. Prints to stdout in the requested format.
+    Query {
+        /// Only events at or after this RFC3339 timestamp.
+        #[arg(long)]
+        since: Option<String>,
+        /// Only events with this signal class.
+        #[arg(long)]
+        signal: Option<String>,
+        /// Only events with this source.
+        #[arg(long)]
+        source: Option<String>,
+        /// Cap results to the most recent N.
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Output format.
+        #[arg(long, default_value = "table")]
+        format: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -149,7 +193,22 @@ fn main() -> Result<()> {
                 specere_units::doctor(&ctx)
             }
         }
-        Command::Observe => specere_telemetry::observe(&ctx),
+        Command::Observe { kind } => match kind {
+            ObserveKind::Record {
+                source,
+                feature_dir,
+                signal,
+                name,
+                attrs,
+            } => run_observe_record(&ctx, source, feature_dir, signal, name, attrs),
+            ObserveKind::Query {
+                since,
+                signal,
+                source,
+                limit,
+                format,
+            } => run_observe_query(&ctx, since, signal, source, limit, &format),
+        },
     };
 
     if let Err(e) = result {
@@ -164,6 +223,64 @@ fn main() -> Result<()> {
         eprintln!("specere: error: {e}");
         std::process::exit(1);
     }
+    Ok(())
+}
+
+fn run_observe_record(
+    ctx: &specere_core::Ctx,
+    source: String,
+    feature_dir: Option<PathBuf>,
+    signal: String,
+    name: Option<String>,
+    attrs: Vec<String>,
+) -> Result<()> {
+    let mut attrs_map = std::collections::BTreeMap::new();
+    for pair in &attrs {
+        match pair.split_once('=') {
+            Some((k, v)) => {
+                attrs_map.insert(k.to_string(), v.to_string());
+            }
+            None => anyhow::bail!(
+                "invalid --attr `{pair}`; expected `KEY=VALUE` (e.g. --attr gen_ai.system=claude-code)"
+            ),
+        }
+    }
+    let event = specere_telemetry::Event {
+        ts: String::new(), // filled in by record()
+        source: source.clone(),
+        signal,
+        name: name.or_else(|| Some(source.clone())),
+        feature_dir: feature_dir.map(|p| p.to_string_lossy().to_string()),
+        attrs: attrs_map,
+    };
+    specere_telemetry::record(ctx, event)?;
+    println!("specere observe record: 1 event appended to .specere/events.jsonl");
+    Ok(())
+}
+
+fn run_observe_query(
+    ctx: &specere_core::Ctx,
+    since: Option<String>,
+    signal: Option<String>,
+    source: Option<String>,
+    limit: Option<usize>,
+    format: &str,
+) -> Result<()> {
+    let filters = specere_telemetry::QueryFilters {
+        since,
+        signal,
+        source,
+        limit,
+    };
+    let events = specere_telemetry::query(ctx, &filters)?;
+    let fmt = match format {
+        "json" => specere_telemetry::QueryFormat::Json,
+        "toml" => specere_telemetry::QueryFormat::Toml,
+        "table" => specere_telemetry::QueryFormat::Table,
+        other => anyhow::bail!("unknown --format `{other}`; expected json|toml|table"),
+    };
+    let out = specere_telemetry::format_events(&events, fmt)?;
+    println!("{out}");
     Ok(())
 }
 
