@@ -6,19 +6,30 @@
 
 ## Priority queue (highest first)
 
-### 1. `phase-4-filter-engine` — per-spec posterior over agent telemetry
+### 1. `phase-4-follow-ups` — FR-P4-002 Python parity + FR-P4-005 throughput
 
-- **Why it's next.** Phase 3 shipped the event stream; Phase 4 consumes it. Rust port of ReSearch's `prototype/mini_specs/filter.py` (per-spec HMM + factor-graph BP + RBPF escape valve). Produces `.specere/posterior.toml` — the live spec-belief surface that the rest of the v1.0 vision hangs on.
-- **Deliverables.** New `specere-filter` crate. `specere filter run` consumes SQLite event store → advances filter → writes posterior. `specere filter status` reads posterior and prints per-spec belief table (sorted by entropy). Per-spec coupling graph loaded from `.specere/sensor-map.toml` (no auto-inference in v1).
-- **Phase mapping.** `docs/specere_v1.md §5.P4` (FR-P4-001 … FR-P4-006).
-- **Workflow.** Per `docs/contributing-via-issues.md`. Sub-issues likely split per filter family (PerSpecHMM → FactorGraphBP → RBPF) so each lands testable against the ReSearch prototype's Gate-A scenario.
+- **Why it's next.** Phase 4 main track landed but deliberately deferred two FRs: FR-P4-002 (< 2 pp tail-MAP parity with `prototype/mini_specs/filter.py` on Gate-A) and FR-P4-005 (≥ 1000 events/s throughput smoke). Both need a one-time Gate-A fixture export from the Python prototype, plus a 10k-event `#[ignore]`-gated benchmark test.
+- **Deliverables.** Export script at `scripts/export_gate_a_posterior.py` writing a committed TOML fixture under `crates/specere-filter/tests/fixtures/gate_a/`. Parity test driver at `crates/specere-filter/tests/gate_a_parity.rs` that loads the fixture and asserts `abs(rust_belief - py_belief) < 0.02` row-wise. Throughput test at `crates/specere/tests/fr_p4_005_throughput.rs` gated on `--ignored`.
+- **Phase mapping.** `docs/specere_v1.md §5.P4` FR-P4-002 + FR-P4-005.
+- **Workflow.** Single PR after filing an issue per `docs/contributing-via-issues.md`.
+
+### 2. `phase-5-motion-calibration` — calibrate transition matrices from git history
+
+- **Why.** Phase 4 uses the prototype's verbatim `Motion` defaults; Phase 5 learns them per-spec from the repo's commit history. `specere calibrate from-git` walks git log, reconstructs (diff, test-delta) pairs, and fits `t_good`/`t_bad` per spec.
+- **Phase mapping.** `docs/specere_v1.md §5.P5`.
 
 ## Beyond the immediate queue
 
-Phases 5–7 (motion-model calibration, cross-session persistence, v1.0.0 dogfood) remain as in the master plan.
+Phases 6–7 (cross-session persistence, v1.0.0 dogfood) remain as in the master plan.
 
 ## Recently closed
 
+- **phase-4-filter-engine main track** (2026-04-18, parent [#39](https://github.com/laiadlotape/specere/issues/39)) — `specere-filter` crate live; `specere filter run/status` wired; FR-P4-001, -003, -004, -006 closed. Execution plan archived at [`docs/history/phase4-execution-plan.md`](history/phase4-execution-plan.md).
+  - [#40](https://github.com/laiadlotape/specere/issues/40) PerSpecHMM scaffold (PR #45).
+  - [#41](https://github.com/laiadlotape/specere/issues/41) FactorGraphBP + coupling loader + cycle rejection (PR #46).
+  - [#42](https://github.com/laiadlotape/specere/issues/42) RBPF escape valve + seeded Gate-A scenario (PR #47).
+  - [#43](https://github.com/laiadlotape/specere/issues/43) filter run/status CLI (PR #48).
+  - FR-P4-002 (< 2 pp Python parity) + FR-P4-005 (throughput smoke) queued as phase-4-follow-ups above.
 - **phase-3-follow-up-grpc** (2026-04-18, [issue #34](https://github.com/laiadlotape/specere/issues/34)) — OTLP/gRPC receiver closes FR-P3-001; `specere serve` now runs HTTP + gRPC concurrently over one SQLite connection.
 - **phase-3-observe-pipeline main track** (2026-04-18, parent [#27](https://github.com/laiadlotape/specere/issues/27)) — event pipeline live; execution plan archived at [`docs/history/phase3-execution-plan.md`](history/phase3-execution-plan.md).
   - [#28](https://github.com/laiadlotape/specere/issues/28) event store JSONL + CLI (PR #32) — `specere observe record/query`.
