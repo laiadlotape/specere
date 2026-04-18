@@ -137,9 +137,15 @@ pub fn remove<D: Deploy + ?Sized>(_deployer: &D, ctx: &Ctx, record: &Record) -> 
 }
 
 fn rel_to_repo(repo: &Path, abs: &Path) -> PathBuf {
-    abs.strip_prefix(repo)
+    let relative = abs
+        .strip_prefix(repo)
         .map(|p| p.to_path_buf())
-        .unwrap_or_else(|_| abs.to_path_buf())
+        .unwrap_or_else(|_| abs.to_path_buf());
+    // Normalise to forward-slash form so manifests are portable across
+    // Linux/macOS (which produce `.claude/skills/...`) and Windows (which
+    // produces `.claude\skills\...`). All SpecERE paths are repo-relative
+    // and POSIX-style.
+    PathBuf::from(relative.to_string_lossy().replace('\\', "/"))
 }
 
 fn is_dir_empty(p: &Path) -> std::io::Result<bool> {

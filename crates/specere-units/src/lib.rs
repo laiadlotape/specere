@@ -10,10 +10,23 @@ pub mod speckit;
 
 pub const SPECERE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Return the `AddUnit` trait object for a given unit id.
-pub fn lookup(id: &str) -> Option<Box<dyn AddUnit>> {
+/// Flags passed by the top-level CLI through `add` into per-unit constructors.
+#[derive(Debug, Default, Clone)]
+pub struct AddFlags {
+    /// `--branch <name>` — only consumed by the `speckit` unit (Phase 1).
+    pub branch: Option<String>,
+    /// `--adopt-edits` — drives the SHA-diff gate's fallback path.
+    pub adopt_edits: bool,
+}
+
+/// Return the `AddUnit` trait object for a given unit id + flags.
+pub fn lookup(id: &str, flags: &AddFlags) -> Option<Box<dyn AddUnit>> {
     match id {
-        "speckit" => Some(Box::new(speckit::Speckit)),
+        "speckit" => Some(Box::new(speckit::Speckit::with_flags(
+            speckit::SpeckitFlags {
+                branch: flags.branch.clone(),
+            },
+        ))),
         "claude-code-deploy" => Some(Box::new(deploy::claude_code::ClaudeCodeDeploy)),
         "filter-state" => Some(Box::new(stub::StubUnit {
             id: "filter-state",
@@ -31,14 +44,48 @@ pub fn lookup(id: &str) -> Option<Box<dyn AddUnit>> {
     }
 }
 
-pub fn add(ctx: &Ctx, unit_id: &str, _flags: &[String]) -> anyhow::Result<()> {
-    let unit = lookup(unit_id).ok_or_else(|| {
+pub fn add(ctx: &Ctx, unit_id: &str, flags: &AddFlags) -> anyhow::Result<()> {
+    let unit = lookup(unit_id, flags).ok_or_else(|| {
         anyhow!("unknown unit `{unit_id}`; run `specere status` to list installed ones")
     })?;
 
     let mut manifest = Manifest::load_or_init(&ctx.manifest_path(), SPECERE_VERSION)?;
-    if manifest.get(unit.id()).is_some() {
-        tracing::info!("unit `{}` already installed — no-op", unit.id());
+
+    // FR-P1-003: SHA-diff gate on re-install. Only applies to native units
+    // with a `files` list recorded in the manifest.
+    if let Some(existing) = manifest.get(unit.id()) {
+        let diverged = check_sha_divergence(ctx, existing);
+        if diverged.is_empty() {
+            tracing::info!("unit `{}` already installed — no-op", unit.id());
+            return Ok(());
+        }
+        if !flags.adopt_edits {
+            return Err(anyhow!(specere_core::Error::AlreadyInstalledMismatch {
+                unit: unit.id().to_string(),
+                files: diverged.into_iter().map(|(_, p)| p).collect(),
+            }));
+        }
+        // Clarified: --adopt-edits refuses deletions.
+        for (_, path) in &diverged {
+            if !ctx.repo().join(path).exists() {
+                return Err(anyhow!(specere_core::Error::DeletedOwnedFile {
+                    unit: unit.id().to_string(),
+                    path: path.clone(),
+                }));
+            }
+        }
+        // Adopt path: flip `owner` to user-edited for the diverged files
+        // without rewriting them.
+        let mut updated = existing.clone();
+        for (idx, _path) in diverged {
+            updated.files[idx].owner = Owner::UserEditedAfterInstall;
+            updated.files[idx].sha256_post =
+                sha256_file(&ctx.repo().join(&updated.files[idx].path))
+                    .unwrap_or_else(|_| updated.files[idx].sha256_post.clone());
+        }
+        manifest.upsert(updated);
+        manifest.save(&ctx.manifest_path())?;
+        tracing::info!("adopted user edits for `{}`", unit.id());
         return Ok(());
     }
 
@@ -49,7 +96,33 @@ pub fn add(ctx: &Ctx, unit_id: &str, _flags: &[String]) -> anyhow::Result<()> {
     }
 
     let record = unit.install(ctx, &plan).context("install failed")?;
-    let entry = record_to_unit_entry(unit.id(), unit.pinned_version(), toml::Table::new(), record);
+
+    // Extract branch hints from record.notes (set by Speckit::install) and
+    // lift them into install_config.
+    let mut install_config = toml::Table::new();
+    let mut passthrough_notes = Vec::with_capacity(record.notes.len());
+    for note in &record.notes {
+        if let Some(v) = note.strip_prefix("branch_name=") {
+            install_config.insert("branch_name".into(), toml::Value::String(v.to_string()));
+        } else if let Some(v) = note.strip_prefix("branch_was_created_by_specere=") {
+            let b = v == "true";
+            install_config.insert(
+                "branch_was_created_by_specere".into(),
+                toml::Value::Boolean(b),
+            );
+        } else {
+            passthrough_notes.push(note.clone());
+        }
+    }
+    let mut trimmed_record = record;
+    trimmed_record.notes = passthrough_notes;
+
+    let entry = record_to_unit_entry(
+        unit.id(),
+        unit.pinned_version(),
+        install_config,
+        trimmed_record,
+    );
     manifest.upsert(entry);
     manifest.save(&ctx.manifest_path())?;
 
@@ -60,8 +133,42 @@ pub fn add(ctx: &Ctx, unit_id: &str, _flags: &[String]) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn remove(ctx: &Ctx, unit_id: &str, dry_run: bool, _force: bool) -> anyhow::Result<()> {
-    let unit = lookup(unit_id).ok_or_else(|| anyhow!("unknown unit `{unit_id}`"))?;
+/// Return (index-in-files-list, repo-relative path) for every file whose
+/// on-disk SHA256 disagrees with the manifest. Empty = clean.
+fn check_sha_divergence(
+    ctx: &Ctx,
+    entry: &specere_manifest::UnitEntry,
+) -> Vec<(usize, std::path::PathBuf)> {
+    let mut out = Vec::new();
+    for (i, f) in entry.files.iter().enumerate() {
+        if f.owner == Owner::UserEditedAfterInstall {
+            continue; // already adopted; not a divergence
+        }
+        let abs = ctx.repo().join(&f.path);
+        if !abs.exists() {
+            // deletion — reported separately via Error::DeletedOwnedFile in future tests.
+            out.push((i, f.path.clone()));
+            continue;
+        }
+        match sha256_file(&abs) {
+            Ok(actual) if actual != f.sha256_post => {
+                out.push((i, f.path.clone()));
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+pub fn remove(
+    ctx: &Ctx,
+    unit_id: &str,
+    dry_run: bool,
+    _force: bool,
+    delete_branch: bool,
+) -> anyhow::Result<()> {
+    let unit =
+        lookup(unit_id, &AddFlags::default()).ok_or_else(|| anyhow!("unknown unit `{unit_id}`"))?;
     let mut manifest = Manifest::load_or_init(&ctx.manifest_path(), SPECERE_VERSION)?;
     let Some(entry) = manifest.get(unit.id()).cloned() else {
         return Err(anyhow!("unit `{}` is not installed", unit.id()));
@@ -89,6 +196,41 @@ pub fn remove(ctx: &Ctx, unit_id: &str, dry_run: bool, _force: bool) -> anyhow::
 
     let record = entry.clone_record();
     unit.remove(ctx, &record).context("remove failed")?;
+
+    // FR-P1-007 / contracts/cli.md §Remove: speckit + --delete-branch.
+    if delete_branch && unit_id == "speckit" {
+        let branch_name = entry
+            .install_config
+            .get("branch_name")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        let was_ours = entry
+            .install_config
+            .get("branch_was_created_by_specere")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if let Some(branch) = branch_name {
+            if !was_ours {
+                return Err(anyhow!(specere_core::Error::BranchNotOurs { branch }));
+            }
+            if git_working_tree_dirty(ctx) {
+                return Err(anyhow!(specere_core::Error::BranchDirty { branch }));
+            }
+            // Switch off the branch first (can't delete the branch we're on).
+            let _ = std::process::Command::new("git")
+                .args(["checkout", "main"])
+                .current_dir(ctx.repo())
+                .status();
+            let st = std::process::Command::new("git")
+                .args(["branch", "-D", &branch])
+                .current_dir(ctx.repo())
+                .status()
+                .map_err(|e| anyhow!("git branch -D failed: {e}"))?;
+            if !st.success() {
+                return Err(anyhow!("git branch -D {branch} exited non-zero"));
+            }
+        }
+    }
 
     manifest.remove(unit.id());
     // If the manifest has no units left, garbage-collect the .specere/ directory
@@ -166,6 +308,17 @@ pub fn doctor(ctx: &Ctx) -> anyhow::Result<()> {
         if manifest_exists { "present" } else { "absent" }
     );
     Ok(())
+}
+
+fn git_working_tree_dirty(ctx: &Ctx) -> bool {
+    match std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(ctx.repo())
+        .output()
+    {
+        Ok(o) => !o.stdout.is_empty(),
+        Err(_) => false,
+    }
 }
 
 fn check(program: &str, args: &[&str]) {

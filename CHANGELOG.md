@@ -37,3 +37,34 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 - First real `after_implement` hook in `.specify/extensions.yml` pointing at `specere.observe.implement`.
 
 See [`docs/specere_v1.md`](docs/specere_v1.md) §5.P1 for the full Phase 1 scope and FRs.
+
+## [0.2.0-dev] - 2026-04-18 (Phase 1 bugfix release — unreleased)
+
+**Governance.** Spec + clarifications + plan + contracts + 37 tasks all under `specs/002-phase-1-bugfix-0-2-0/`. Constitution (`.specify/memory/constitution.md`) gates every install path; constitution principles I–V passed re-check post-design. Full workspace test sweep: 37 passing across 19 suites.
+
+### Added
+- **SpecKit harness dogfood.** `.specify/`, `.claude/skills/speckit-*`, `CLAUDE.md` marker block, `.specere/manifest.toml`, `specere-observe` workflow (`review-spec` → `review-plan` → `divergence-adjudication` gates), `.specere/review-queue.md` for self-extension detection — constitution principle V in action.
+- **FR-P1-001**: `speckit` installer detects ambient `.git/` and drops `--no-git`.
+- **FR-P1-002**: Auto-created feature branch `000-baseline` (overridable via `--branch <name>` CLI flag or `$SPECERE_FEATURE_BRANCH` env var; flag wins).
+- **FR-P1-003**: SHA-diff preflight gate on every reinstall. Refuses with exit code 2 naming the diverged file(s); `--adopt-edits` flips the owner to `user-edited-after-install` and updates the manifest without rewriting. Deletion case refuses separately (exit 4).
+- **FR-P1-004**: `claude-code-deploy` unit appends `.claude/settings.local.json` to `.gitignore` inside a marker-fenced block (`# <!-- specere:begin claude-code-deploy --> … # <!-- specere:end claude-code-deploy -->`).
+- **FR-P1-005**: `claude-code-deploy` registers exactly one `after_implement` hook in `.specify/extensions.yml` (extension: specere, command: `specere.observe.implement`, optional: false).
+- **FR-P1-006**: `specere add <unit> && specere remove <unit>` is byte-identical round-trip — `.gitignore` and `.specify/extensions.yml` SHA-match pre- and post-cycle.
+- **FR-P1-007**: Manifest records `install_config.branch_name` + `install_config.branch_was_created_by_specere` on the `speckit` unit. `specere remove speckit --delete-branch` refuses with exit 7 if `branch_was_created_by_specere=false` and with exit 6 if the working tree is dirty.
+- **FR-P1-008**: Parse-safety gate extended to all declared formats: YAML (`extensions.yml`), TOML (`.specere/*.toml`), JSON (`workflow-registry.json`), plain text (`.gitignore`). Refuses to rewrite any malformed file with exit code 3, naming the file.
+- **FR-P1-009**: Every Phase-1 bug has a dedicated regression test in `crates/specere-units/tests/fr_p1_*.rs`.
+- New crates dependencies: `serde_yaml`, `serde_json`, `assert_cmd`, `predicates`.
+- New `specere-markers` modules: `text_block_fence` (plain-text) and `yaml_block_fence` (YAML line-comment) — 11 unit tests pass.
+- Three new `claude-code-deploy`-bundled skills: `specere-observe-implement`, `specere-review-check`, `specere-review-drain` — embedded via `include_str!`, written to `.claude/skills/specere-*/SKILL.md` on install.
+- `specere-core::Error` variants: `AlreadyInstalledMismatch`, `ParseFailure`, `DeletedOwnedFile`, `BranchDirty`, `BranchNotOurs` with stable exit-code mapping per `contracts/cli.md`.
+- `SC-008` usability check (aspirational, non-blocking) documented at `docs/lessons/0.2.0-usability.md` if performed.
+
+### Changed
+- Workspace version bumped to `0.2.0-dev`; cross-crate path-deps track.
+- `specere add` / `specere remove` CLI grew typed flags (`--adopt-edits`, `--branch`, `--delete-branch`) replacing the prior trailing-var-args passthrough.
+- `specere add speckit`'s `uvx specify init …` arg list conditionally includes `--no-git` based on `.git/` presence; previous unconditional flag dropped.
+- `specere-markers` added line-comment YAML fence convention for `.specify/extensions.yml` (contracts/extensions-mutation.md) since HTML comments don't survive inside YAML block-sequence items. All marker mutations are text-splice — never `serde_yaml::to_string` round-trip — so the git extension's 17 hook entries keep byte-exact formatting (SC-004 load-bearing).
+
+### Breaking changes (from v0.1.0-dev)
+- CLI: `specere add <unit> <positional flags>` no longer accepts pass-through flags. New typed flags are `--adopt-edits` and `--branch <name>`.
+- Manifest schema: new optional fields on `install_config` — no migration needed for v0.1.x manifests (fields are additive).

@@ -31,9 +31,15 @@ enum Command {
         /// Unit id (e.g. `speckit`).
         unit: String,
 
-        /// Extra flags forwarded to the unit (key=value).
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        flags: Vec<String>,
+        /// Accept on-disk content of owned files as the new baseline
+        /// when SHA-diff detects user edits (FR-P1-003).
+        #[arg(long)]
+        adopt_edits: bool,
+
+        /// Override the auto-created feature branch name (speckit only;
+        /// FR-P1-002). Wins over `$SPECERE_FEATURE_BRANCH`.
+        #[arg(long, value_name = "NAME")]
+        branch: Option<String>,
     },
     /// Remove one add-unit from the target repository.
     Remove {
@@ -43,6 +49,12 @@ enum Command {
         /// Remove user-edited files too (off by default).
         #[arg(long)]
         force: bool,
+
+        /// Delete the auto-created feature branch, if
+        /// `branch_was_created_by_specere = true` and working tree is
+        /// clean (speckit only; FR-P1-007).
+        #[arg(long)]
+        delete_branch: bool,
     },
     /// List installed units and flag drift.
     Status,
@@ -69,12 +81,62 @@ fn main() -> Result<()> {
         .unwrap_or_else(|| std::env::current_dir().expect("cwd available"));
     let ctx = specere_core::Ctx::new(repo).with_dry_run(cli.dry_run);
 
-    match cli.command {
-        Command::Add { unit, flags } => specere_units::add(&ctx, &unit, &flags),
-        Command::Remove { unit, force } => specere_units::remove(&ctx, &unit, ctx.dry_run(), force),
+    let result = match cli.command {
+        Command::Add {
+            unit,
+            adopt_edits,
+            branch,
+        } => {
+            let flags = specere_units::AddFlags {
+                branch,
+                adopt_edits,
+            };
+            specere_units::add(&ctx, &unit, &flags)
+        }
+        Command::Remove {
+            unit,
+            force,
+            delete_branch,
+        } => specere_units::remove(&ctx, &unit, ctx.dry_run(), force, delete_branch),
         Command::Status => specere_units::status(&ctx),
         Command::Verify => specere_units::verify(&ctx),
         Command::Doctor => specere_units::doctor(&ctx),
         Command::Observe => specere_telemetry::observe(&ctx),
+    };
+
+    if let Err(e) = result {
+        // Look for a specere_core::Error in the error chain for exit-code
+        // + message formatting (contracts/cli.md §Stderr format).
+        let root = e.root_cause();
+        if let Some(specere_err) = root.downcast_ref::<specere_core::Error>() {
+            eprintln!("specere: error: {specere_err}");
+            print_help_hint(specere_err);
+            std::process::exit(specere_err.exit_code());
+        }
+        eprintln!("specere: error: {e}");
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+fn print_help_hint(e: &specere_core::Error) {
+    use specere_core::Error::*;
+    match e {
+        AlreadyInstalledMismatch { unit, files } => {
+            eprintln!("  help: run `specere add {unit} --adopt-edits` to accept your changes");
+            for f in files {
+                eprintln!("  affected: {}", f.display());
+            }
+        }
+        DeletedOwnedFile { unit, .. } => {
+            eprintln!("  help: run `specere remove {unit}` then `specere add {unit}` instead");
+        }
+        ParseFailure { path, .. } => {
+            eprintln!("  affected: {}", path.display());
+        }
+        BranchDirty { .. } => {
+            eprintln!("  help: stash or commit your changes first (`git stash`)");
+        }
+        _ => {}
     }
 }

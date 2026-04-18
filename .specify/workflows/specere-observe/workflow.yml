@@ -80,5 +80,5 @@ steps:
       Review .specere/review-queue.md before closing the iteration.
       (core_theory §4 divergence-adjudication touchpoint — extend the harness,
       allowlist the surface, ignore, or reopen a spec.)
-    options: [approve, revise]
+    options: [approve, reject]
     on_reject: abort
