@@ -1824,6 +1824,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "specere-core",
+ "specere-filter",
  "specere-manifest",
  "specere-markers",
  "specere-telemetry",
@@ -1856,6 +1857,7 @@ dependencies = [
  "ndarray",
  "rand 0.8.6",
  "serde",
+ "tempfile",
  "toml",
 ]
 

@@ -99,6 +99,38 @@ enum Command {
         #[arg(long)]
         grpc_bind: Option<String>,
     },
+    /// Per-spec Bayesian filter over the event store. Issue #43 / FR-P4-001..005.
+    Filter {
+        #[command(subcommand)]
+        kind: FilterKind,
+    },
+}
+
+#[derive(Subcommand)]
+enum FilterKind {
+    /// Consume new events since the last cursor, advance the posterior, write
+    /// atomically to `.specere/posterior.toml`. Idempotent under no new events.
+    Run {
+        /// Override the sensor-map path (default: `.specere/sensor-map.toml`).
+        #[arg(long)]
+        sensor_map: Option<PathBuf>,
+        /// Override the posterior path (default: `.specere/posterior.toml`).
+        #[arg(long)]
+        posterior: Option<PathBuf>,
+    },
+    /// Read the posterior and print a per-spec belief table.
+    Status {
+        /// Sort column + direction. One of `entropy,desc` (default), `p_sat,asc`,
+        /// `p_sat,desc`, `p_vio,asc`, `p_vio,desc`.
+        #[arg(long, default_value = "entropy,desc")]
+        sort: String,
+        /// Output format: `table` (default) or `json`.
+        #[arg(long, default_value = "table")]
+        format: String,
+        /// Override the posterior path.
+        #[arg(long)]
+        posterior: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -227,6 +259,17 @@ fn main() -> Result<()> {
             bind,
             grpc_bind,
         } => run_serve(&ctx, config, bind, grpc_bind),
+        Command::Filter { kind } => match kind {
+            FilterKind::Run {
+                sensor_map,
+                posterior,
+            } => run_filter_run(&ctx, sensor_map, posterior),
+            FilterKind::Status {
+                sort,
+                format,
+                posterior,
+            } => run_filter_status(&ctx, &sort, &format, posterior),
+        },
     };
 
     if let Err(e) = result {
@@ -336,6 +379,209 @@ fn run_observe_query(
     };
     let out = specere_telemetry::format_events(&events, fmt)?;
     println!("{out}");
+    Ok(())
+}
+
+fn run_filter_run(
+    ctx: &specere_core::Ctx,
+    sensor_map: Option<PathBuf>,
+    posterior: Option<PathBuf>,
+) -> Result<()> {
+    let sensor_map_path = sensor_map.unwrap_or_else(|| ctx.repo().join(".specere/sensor-map.toml"));
+    let posterior_path =
+        posterior.unwrap_or_else(|| specere_filter::Posterior::default_path(ctx.repo()));
+
+    let specs = specere_filter::load_specs(&sensor_map_path)?;
+    let coupling = specere_filter::CouplingGraph::load(&sensor_map_path)?;
+    let motion = specere_filter::Motion::prototype_defaults();
+
+    let mut existing = specere_filter::Posterior::load_or_default(&posterior_path)?;
+    let cursor = existing.cursor.clone();
+
+    // Query events strictly *after* the cursor so a re-run with no new events
+    // is a no-op (FR-P4-001). The event_store query uses `>= since` so we
+    // compare-and-skip ourselves.
+    let all_events = specere_telemetry::event_store::query(
+        ctx.repo(),
+        &specere_telemetry::event_store::QueryFilters::default(),
+    )?;
+    let new_events: Vec<_> = all_events
+        .into_iter()
+        .filter(|e| match &cursor {
+            Some(c) => e.ts.as_str() > c.as_str(),
+            None => true,
+        })
+        .collect();
+
+    if new_events.is_empty() {
+        // Idempotent re-run: posterior must stay byte-identical (FR-P4-001).
+        // Still write to re-sort entries deterministically in case the file
+        // was hand-edited out of order — the sort is a no-op on already-
+        // sorted data.
+        existing.write_atomic(&posterior_path)?;
+        println!(
+            "specere filter: no new events since {}",
+            cursor.as_deref().unwrap_or("start")
+        );
+        return Ok(());
+    }
+
+    // Branch: use FactorGraphBP when the sensor-map has edges, else plain
+    // PerSpecHMM. RBPF routing from the CLI is out-of-scope for #43.
+    let mut hmm = if coupling.edges.is_empty() {
+        FilterBackend::Hmm(specere_filter::PerSpecHMM::new(specs.clone(), motion))
+    } else {
+        FilterBackend::Bp(specere_filter::FactorGraphBP::new(
+            specs.clone(),
+            motion,
+            &coupling,
+        ))
+    };
+
+    let sensor = specere_filter::DefaultTestSensor;
+    let mut processed = 0usize;
+    let mut skipped = 0usize;
+    let mut latest_ts: Option<String> = None;
+    for e in new_events {
+        latest_ts = Some(e.ts.clone());
+        let kind = e.attrs.get("event_kind").map(String::as_str);
+        let spec_id = e.attrs.get("spec_id").map(String::as_str);
+        match (kind, spec_id) {
+            (Some("test_outcome"), Some(sid)) => {
+                let outcome = e.attrs.get("outcome").map(String::as_str).unwrap_or("");
+                match hmm.update_test(sid, outcome, &sensor) {
+                    Ok(()) => processed += 1,
+                    Err(_) => skipped += 1,
+                }
+            }
+            (Some("files_touched"), _) => {
+                let raw = e.attrs.get("paths").map(String::as_str).unwrap_or("");
+                let paths = specere_filter::parse_paths(raw);
+                let refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+                hmm.predict(&refs);
+                processed += 1;
+            }
+            _ => skipped += 1,
+        }
+    }
+
+    // Snapshot marginals into a fresh Posterior.
+    let write_ts = latest_ts
+        .clone()
+        .unwrap_or_else(specere_telemetry::event_store::now_rfc3339);
+    let entries = specs
+        .iter()
+        .map(|s| {
+            hmm.marginal(&s.id)
+                .map(|b| specere_filter::Entry::from_belief(&s.id, &b, &write_ts))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut out = specere_filter::Posterior {
+        cursor: latest_ts,
+        schema_version: 1,
+        entries,
+    };
+    out.write_atomic(&posterior_path)?;
+
+    println!(
+        "specere filter: processed {processed} event(s), skipped {skipped}; cursor -> {}",
+        out.cursor.as_deref().unwrap_or("<unchanged>")
+    );
+    Ok(())
+}
+
+/// Thin enum so `run_filter_run` can dispatch to HMM or BP without trait
+/// objects. RBPF needs explicit cluster config → not CLI-wired in #43.
+enum FilterBackend {
+    Hmm(specere_filter::PerSpecHMM),
+    Bp(specere_filter::FactorGraphBP),
+}
+
+impl FilterBackend {
+    fn predict(&mut self, files: &[&str]) {
+        match self {
+            Self::Hmm(f) => f.predict(files),
+            Self::Bp(f) => f.predict(files),
+        }
+    }
+    fn update_test<S: specere_filter::TestSensor>(
+        &mut self,
+        spec_id: &str,
+        outcome: &str,
+        sensor: &S,
+    ) -> Result<()> {
+        match self {
+            Self::Hmm(f) => f.update_test(spec_id, outcome, sensor),
+            Self::Bp(f) => f.update_test(spec_id, outcome, sensor),
+        }
+    }
+    fn marginal(&self, spec_id: &str) -> Result<specere_filter::Belief> {
+        match self {
+            Self::Hmm(f) => f.marginal(spec_id),
+            Self::Bp(f) => f.marginal(spec_id),
+        }
+    }
+}
+
+fn run_filter_status(
+    ctx: &specere_core::Ctx,
+    sort: &str,
+    format: &str,
+    posterior: Option<PathBuf>,
+) -> Result<()> {
+    let posterior_path =
+        posterior.unwrap_or_else(|| specere_filter::Posterior::default_path(ctx.repo()));
+    if !posterior_path.exists() {
+        println!("no posterior yet — run `specere filter run` first");
+        return Ok(());
+    }
+    let p = specere_filter::Posterior::load_or_default(&posterior_path)?;
+
+    let mut entries = p.entries.clone();
+    sort_entries(&mut entries, sort)?;
+
+    match format {
+        "json" => {
+            println!("{}", serde_json::to_string_pretty(&entries)?);
+        }
+        _ => {
+            println!("spec_id      p_unk   p_sat   p_vio   entropy  last_updated");
+            println!("-----------  ------  ------  ------  -------  --------------------");
+            for e in &entries {
+                println!(
+                    "{:<11}  {:>6.3}  {:>6.3}  {:>6.3}  {:>7.4}  {}",
+                    e.spec_id, e.p_unk, e.p_sat, e.p_vio, e.entropy, e.last_updated
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn sort_entries(entries: &mut [specere_filter::Entry], sort: &str) -> Result<()> {
+    use std::cmp::Ordering;
+    let (field, dir) = sort
+        .split_once(',')
+        .ok_or_else(|| anyhow::anyhow!("--sort expects `field,asc|desc` (got `{sort}`)"))?;
+    let ascending = matches!(dir, "asc");
+    let cmp: fn(&specere_filter::Entry, &specere_filter::Entry) -> Ordering = match field {
+        "entropy" => |a, b| a.entropy.partial_cmp(&b.entropy).unwrap_or(Ordering::Equal),
+        "p_sat" => |a, b| a.p_sat.partial_cmp(&b.p_sat).unwrap_or(Ordering::Equal),
+        "p_vio" => |a, b| a.p_vio.partial_cmp(&b.p_vio).unwrap_or(Ordering::Equal),
+        "p_unk" => |a, b| a.p_unk.partial_cmp(&b.p_unk).unwrap_or(Ordering::Equal),
+        "spec_id" => |a, b| a.spec_id.cmp(&b.spec_id),
+        _ => anyhow::bail!(
+            "unknown --sort field `{field}`; one of entropy, p_sat, p_vio, p_unk, spec_id"
+        ),
+    };
+    entries.sort_by(|a, b| {
+        let o = cmp(a, b);
+        if ascending {
+            o
+        } else {
+            o.reverse()
+        }
+    });
     Ok(())
 }
 
