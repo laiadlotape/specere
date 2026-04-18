@@ -4,13 +4,19 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
-### Added (post-Phase-1)
+## [0.2.0] - 2026-04-18
+
+### Release infrastructure
+- `cargo-dist@0.31` wired via `dist-workspace.toml`. Generated `.github/workflows/release.yml` produces cross-platform binaries for five target triples (Linux x86_64 + aarch64, macOS x86_64 + aarch64, Windows x86_64) plus `shell` and `powershell` installer scripts on every `v*.*.*` tag push.
+- Hand-written `.github/workflows/release-guards.yml` enforces three pre-upload invariants on tag push: tag name matches `Cargo.toml` version (FR-RI-003), `CHANGELOG.md` has a `## [<version>]` section (FR-RI-004), tag commit is reachable from `main` (FR-RI-005).
+- `docs/release.md` documents the tag-cut procedure, local reproduction via `dist plan` / `dist build`, rollback steps (delete tag + Release → bit-identical to pre-tag), and the three guard-failure modes.
+- Workspace version bumped from `0.2.0-dev` to `0.2.0`.
+
+### Phase-1 post-merge (was [Unreleased])
 - `docs/upcoming.md` — lightweight priority queue of the next specs (release-infra, Phase 2 native units, Phase 3 observe pipeline) with carry-over items from `.specere/decisions.log`.
 - `docs-sync` CI job in `.github/workflows/ci.yml`. Blocks PRs where `crates/**/*.rs` changes without any `README.md` / `CHANGELOG.md` / `CONTRIBUTING.md` / `docs/**/*.md` / `specs/**/*.md` touch. Escape hatch: include `[skip-docs]` in the PR title or body.
 - `Claude PR review` CI job at `.github/workflows/claude-review.yml` using `anthropics/claude-code-action@v1`. Runs on every `opened` / `synchronize` / `reopened` PR event, posts findings as a PR review enforcing the constitution's 10-rule composition pattern, reversibility, per-FR test coverage, cross-platform path safety, doc-sync drift, and the narrow-parse rule. Advisory (does not block). Setup documented in `docs/auto-review.md` (GitHub App preferred; API-key secret as fallback). Skipped on fork PRs.
-
-### Changed
-- `README.md` Status table corrected: Phase 0 marked ✅ Shipped, Phase 1 marked ✅ Merged (PR #2, 9 FRs, 37/37 CI tests green). Reflects `main @ ae7b4c4` state.
+- `README.md` Status table corrected: Phase 0 marked ✅ Shipped, Phase 1 marked ✅ Merged (PR #2, 9 FRs, 37/37 CI tests green).
 - All CI jobs upgraded to `actions/checkout@v6` (absorbs Dependabot PR #1).
 
 ### Added

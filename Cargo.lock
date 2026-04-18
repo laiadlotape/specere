@@ -647,7 +647,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "specere"
-version = "0.2.0-dev"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "specere-core"
-version = "0.2.0-dev"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "specere-manifest"
-version = "0.2.0-dev"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "hex",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "specere-markers"
-version = "0.2.0-dev"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde_yaml",
@@ -702,7 +702,7 @@ dependencies = [
 
 [[package]]
 name = "specere-telemetry"
-version = "0.2.0-dev"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "specere-core",
@@ -711,7 +711,7 @@ dependencies = [
 
 [[package]]
 name = "specere-units"
-version = "0.2.0-dev"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "hex",
