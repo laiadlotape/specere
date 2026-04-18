@@ -6,18 +6,23 @@ Each row below pairs a manual-test scenario from the charter in `docs/phase4-fol
 
 ## Summary
 
-| Total | Pass as-is | Pass with a minor UX note | Bug found + fixed in-branch |
-|---|---|---|---|
-| 24 | 19 | 3 | 2 |
+| Total | Pass as-is | Bug / UX gap found + fixed in-branch |
+|---|---|---|
+| 24 | 19 | 5 |
 
-**Bugs found and fixed:**
-- **M-21** — cursor-advance-on-last-iter instead of max (FR-P4-001 violation under out-of-order JSONL). Fixed.
-- **M-04 / M-19** (same root cause) — anyhow context chain truncated in CLI error-print. Fixed.
+**Fixed in-branch (regression tests added):**
+- **M-21** — cursor-advance-on-last-iter instead of max (FR-P4-001 violation under out-of-order JSONL).
+- **M-04 / M-19** (same root cause) — anyhow context chain truncated in CLI error-print.
+- **M-07-B** — `filter status` on empty-but-existing posterior now prints an actionable hint instead of a header-only table.
+- **M-15** — `--format yaml` (unknown) now errors with `unknown --format \`yaml\`; one of \`table\` (default) or \`json\``.
+- **M-15-B** — `--sort entropy,sideways` (unknown direction) now errors with `--sort direction must be \`asc\` or \`desc\``.
 
-**Minor UX notes (not fixed for v0.4.0):**
-- M-06 writes an empty `posterior.toml` on first run with no events; not harmful.
-- M-07-B prints only the table header when the posterior has zero entries; no orient-the-user hint.
-- M-15 / M-15-B silently accepts unknown `--format` and non-`asc` sort directions, defaulting to table / desc.
+**Deferred to post-v0.4.0 follow-up issue:**
+- **M-19 advisory lock** — concurrent `filter run` races resolve with one exit-1; no corruption, but a real-file lock on `posterior.toml` would serialise instead of losing. Tracked as a new GitHub issue.
+
+**Minor notes kept as-is:**
+- **M-06** first-run-with-no-events writes an empty posterior file. Not harmful; subsequent runs are byte-identical per FR-P4-001.
+- **M-16** long spec IDs break the table column alignment (column width is fixed). JSON output is the programmatic path.
 
 ---
 
@@ -67,10 +72,12 @@ Each row below pairs a manual-test scenario from the charter in `docs/phase4-fol
 - **Command.** Valid sensor-map, no `posterior.toml`; `specere filter status`.
 - **Outcome.** ✅ Pass. Prints `no posterior yet — run \`specere filter run\` first` and exits 0.
 
-### M-07-B — `filter status` on zero-entry posterior (from M-06's artefact)
+### M-07-B — `filter status` on zero-entry posterior (from M-06's artefact) — **FIXED**
 
 - **Linked.** `run_filter_status`.
-- **Outcome.** ⚠️ Minor. Prints only the table header, no rows, no hint. Functional but slightly disorienting. Didn't fix in this PR — would push the "no events" check into `run_filter_status` which complicates the contract of "status reads what's there and prints it."
+- **Outcome, pre-fix.** Printed only the table header, no rows, no hint.
+- **Fix.** After `posterior_path.exists()` but before sort/print, check `p.entries.is_empty()` and print "posterior has no entries — no events processed yet. Add `[specs]` + seed events, then `specere filter run`." Regression test `filter_status_hints_on_empty_posterior`.
+- **Outcome, post-fix.** ✅ Pass.
 
 ### M-08 — `event_kind=test_outcome`, no `spec_id`
 
@@ -107,15 +114,19 @@ Each row below pairs a manual-test scenario from the charter in `docs/phase4-fol
 - **Linked.** `sort_entries`.
 - **Outcome.** ✅ Pass. Works correctly (`spec_id` is accepted even though the `--help` text doesn't enumerate it). Minor doc inconsistency; not fixing because expanding the help text would exceed the 80-column width.
 
-### M-15 — `--format yaml` (unknown format)
+### M-15 — `--format yaml` (unknown format) — **FIXED**
 
 - **Linked.** `run_filter_status`.
-- **Outcome.** ⚠️ Minor. Silently falls through to the default table format. No warning emitted. Not fixing for v0.4.0 — current fallthrough behaviour is permissive-by-default, which the table-vs-json-vs-future-formats story can clean up later.
+- **Outcome, pre-fix.** Silently fell through to the default table format. No warning.
+- **Fix.** `match format` now explicitly enumerates `"json"` and `"table"`; any other value errors with `unknown --format \`...\`; one of \`table\` (default) or \`json\``. Regression test `filter_status_rejects_unknown_format`.
+- **Outcome, post-fix.** ✅ Pass.
 
-### M-15-B — `--sort entropy,sideways` (unknown direction)
+### M-15-B — `--sort entropy,sideways` (unknown direction) — **FIXED**
 
 - **Linked.** `sort_entries`.
-- **Outcome.** ⚠️ Minor. `matches!(dir, "asc")` fails, so `ascending=false` → treated as `desc`. Same permissive-default theme as M-15. Not fixing.
+- **Outcome, pre-fix.** `matches!(dir, "asc")` failed, so `ascending=false` → treated as `desc`.
+- **Fix.** Direction is now explicitly matched against `"asc"` / `"desc"`; any other value errors with `--sort direction must be \`asc\` or \`desc\``. Regression test `filter_status_rejects_bad_sort_direction`.
+- **Outcome, post-fix.** ✅ Pass.
 
 ### M-16 — very long spec ID (200 chars)
 
@@ -179,12 +190,18 @@ match &latest_ts {
 
 ---
 
-## Fix commit SHAs
+## Fixes summary
 
-| Finding | Fixed in |
-|---|---|
-| M-21 cursor max-ts | crates/specere/src/main.rs::run_filter_run |
-| M-04 / M-19 lost anyhow chain | crates/specere/src/main.rs main-err fmt → `{e:#}` |
-| Regression test | crates/specere/tests/fr_p4_filter_cli.rs (new `filter_run_cursor_advances_to_max_not_last_iteration_ts`) |
+| Finding | Fix location | Regression test |
+|---|---|---|
+| M-21 cursor max-ts | `crates/specere/src/main.rs::run_filter_run` | `filter_run_cursor_advances_to_max_not_last_iteration_ts` |
+| M-04 / M-19 lost anyhow chain | `crates/specere/src/main.rs` main-err fmt → `{e:#}` | (manual verification; no test — tests capture the root error, not display formatting) |
+| M-07-B empty-posterior hint | `crates/specere/src/main.rs::run_filter_status` | `filter_status_hints_on_empty_posterior` |
+| M-15 unknown `--format` | `crates/specere/src/main.rs::run_filter_status` | `filter_status_rejects_unknown_format` |
+| M-15-B bad sort direction | `crates/specere/src/main.rs::sort_entries` | `filter_status_rejects_bad_sort_direction` |
 
-All three changes land in the `028-phase4-followups` branch — commit references captured in git history at the time of merge.
+All five land in the `028-phase4-followups` branch — commit references captured in git history.
+
+## Deferred
+
+**M-19 advisory lock.** Concurrent `filter run` races resolve with one exit-1 and no corruption, but a real-file lock on `.specere/posterior.toml` would serialise racers instead of losing one. Scoped out of this PR to keep the change surface tight. Tracked as a post-v0.4.0 follow-up GitHub issue.

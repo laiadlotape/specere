@@ -191,6 +191,50 @@ fn filter_status_on_empty_repo_prints_hint() {
 }
 
 #[test]
+fn filter_status_rejects_unknown_format() {
+    // Regression for manual-test M-15 — unknown `--format` values used to
+    // silently fall through to `table`. Must now error.
+    let repo = TempRepo::new();
+    seed_sensor_map(&repo);
+    record_event(&repo, "FR-001", "pass");
+    repo.run_specere(&["filter", "run"]).assert().success();
+    repo.run_specere(&["filter", "status", "--format", "yaml"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("unknown --format"));
+}
+
+#[test]
+fn filter_status_rejects_bad_sort_direction() {
+    // Regression for manual-test M-15-B — any non-`asc` direction used to
+    // silently become `desc`. Must now error.
+    let repo = TempRepo::new();
+    seed_sensor_map(&repo);
+    record_event(&repo, "FR-001", "pass");
+    repo.run_specere(&["filter", "run"]).assert().success();
+    repo.run_specere(&["filter", "status", "--sort", "entropy,sideways"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("must be `asc` or `desc`"));
+}
+
+#[test]
+fn filter_status_hints_on_empty_posterior() {
+    // Regression for manual-test M-07-B — when the posterior file exists
+    // but has zero entries (e.g. after `filter run` on an events-less but
+    // sensor-mapped repo), `status` should hint instead of printing a
+    // header-only table.
+    let repo = TempRepo::new();
+    seed_sensor_map(&repo);
+    // Trigger the empty-posterior write: `filter run` with no events.
+    repo.run_specere(&["filter", "run"]).assert().success();
+    repo.run_specere(&["filter", "status"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("posterior has no entries"));
+}
+
+#[test]
 fn filter_run_cursor_advances_to_max_not_last_iteration_ts() {
     // Regression for the manual-test M-21 finding: when JSONL events arrive
     // out-of-order (e.g. a backfilled late-dated event appended after newer

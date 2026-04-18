@@ -546,6 +546,17 @@ fn run_filter_status(
     }
     let p = specere_filter::Posterior::load_or_default(&posterior_path)?;
 
+    // Empty-posterior hint — the file exists (so the "no posterior yet"
+    // branch above didn't fire) but has zero entries. Surfaced by manual-
+    // test M-07-B.
+    if p.entries.is_empty() {
+        println!(
+            "posterior has no entries — no events processed yet. \
+             Add `[specs]` + seed events, then `specere filter run`."
+        );
+        return Ok(());
+    }
+
     let mut entries = p.entries.clone();
     sort_entries(&mut entries, sort)?;
 
@@ -553,7 +564,7 @@ fn run_filter_status(
         "json" => {
             println!("{}", serde_json::to_string_pretty(&entries)?);
         }
-        _ => {
+        "table" => {
             println!("spec_id      p_unk   p_sat   p_vio   entropy  last_updated");
             println!("-----------  ------  ------  ------  -------  --------------------");
             for e in &entries {
@@ -563,6 +574,7 @@ fn run_filter_status(
                 );
             }
         }
+        other => anyhow::bail!("unknown --format `{other}`; one of `table` (default) or `json`"),
     }
     Ok(())
 }
@@ -572,7 +584,13 @@ fn sort_entries(entries: &mut [specere_filter::Entry], sort: &str) -> Result<()>
     let (field, dir) = sort
         .split_once(',')
         .ok_or_else(|| anyhow::anyhow!("--sort expects `field,asc|desc` (got `{sort}`)"))?;
-    let ascending = matches!(dir, "asc");
+    // Validate direction explicitly — previously any non-"asc" string silently
+    // became `desc`. Surfaced by manual-test M-15-B.
+    let ascending = match dir {
+        "asc" => true,
+        "desc" => false,
+        other => anyhow::bail!("--sort direction must be `asc` or `desc` (got `{other}`)"),
+    };
     let cmp: fn(&specere_filter::Entry, &specere_filter::Entry) -> Ordering = match field {
         "entropy" => |a, b| a.entropy.partial_cmp(&b.entropy).unwrap_or(Ordering::Equal),
         "p_sat" => |a, b| a.p_sat.partial_cmp(&b.p_sat).unwrap_or(Ordering::Equal),

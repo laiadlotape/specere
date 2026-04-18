@@ -12,6 +12,9 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 ### Fixed (manual-test findings, docs/phase4-manual-test-report.md)
 - **Cursor advance on out-of-order JSONL** (manual-test M-21, FR-P4-001 regression). `run_filter_run` previously set the cursor to the *last-iterated* event's ts; if events arrived out of order (e.g. a back-dated append), the cursor could retreat and the next re-run would re-process valid events. Now tracks the MAX observed ts. Regression test `filter_run_cursor_advances_to_max_not_last_iteration_ts`.
 - **CLI error chain collapsed to top-level message** (manual-test M-04 / M-19). Switched the fallthrough error-print in `main.rs` from `{e}` to `{e:#}` so `anyhow::Context` layers (e.g. TOML parse line/col, rename failure detail) surface to the user.
+- **`filter status` on empty-but-existing posterior** (M-07-B). Now prints an actionable "posterior has no entries — no events processed yet" hint instead of a header-only table. Regression test `filter_status_hints_on_empty_posterior`.
+- **`filter status --format <unknown>`** (M-15). Previously silently defaulted to table; now errors with `unknown --format` + enumeration of valid values. Regression test `filter_status_rejects_unknown_format`.
+- **`filter status --sort <field>,<bad-direction>`** (M-15-B). Previously any non-`asc` direction became `desc`; now errors with `--sort direction must be \`asc\` or \`desc\``. Regression test `filter_status_rejects_bad_sort_direction`.
 
 ### Planning
 - `docs/phase4-followups-execution-plan.md` — plan covering §2.1 alignment, §2.2 fixture export, §2.3 parity test, §2.4 throughput test, §2.5 manual-test charter, §2.6 release.
