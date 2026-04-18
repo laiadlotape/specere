@@ -4,6 +4,16 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+- `AgentBundle` in `crates/specere-units/src/deploy/mod.rs` alongside the existing `SkillBundle`. `Deploy` trait gains `agents()` + `agent_dir()` + `agent_rel_path()` with sensible defaults. Issue #7.
+- First SpecERE subagent shipped via `claude-code-deploy`: `specere-reviewer` at `.claude/agents/specere-reviewer.md`, a constitution-compliant PR/diff reviewer. Matches the CI `review` job's prompt but usable interactively via the `Agent` tool. Issue #7.
+- Second marker-fenced block in `CLAUDE.md`: `rules`. Contains the 10 composition rules + NEVER-do list, session-durable so every agent invocation sees them up-front (not only on-demand via skills). Sourced from `crates/specere-units/src/deploy/rules/specere-rules.md`. Issue #8.
+- `docs/contributing-via-issues.md` — canonical bug/flaw/feature → parent issue → sub-issues → PR pipeline. Linked from `CONTRIBUTING.md`. Issue #9.
+
+### Changed
+- `claude-code-deploy`'s install record now lists an additional `MarkerEntry` for `CLAUDE.md` block `rules`, and an agent `FileEntry` under `.claude/agents/`. `remove` inverts both cleanly (byte-identical round-trip per FR-P1-006).
+- `CONTRIBUTING.md` now links `docs/contributing-via-issues.md` as the start-here doc.
+
 ## [0.2.0] - 2026-04-18
 
 ### Release infrastructure

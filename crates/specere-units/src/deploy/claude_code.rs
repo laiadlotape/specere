@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use specere_core::{AddUnit, Ctx, FileEntry, MarkerEntry, Owner, Plan, Record, Result};
 
-use super::{Deploy, SkillBundle};
+use super::{AgentBundle, Deploy, SkillBundle};
 
 /// The adoption skill — translates an existing repo into SpecERE's SDD stack.
 pub const SPECERE_ADOPT_SKILL: SkillBundle = SkillBundle {
@@ -39,6 +39,20 @@ const ALL_SKILLS: &[SkillBundle] = &[
     SPECERE_REVIEW_DRAIN_SKILL,
 ];
 
+/// First SpecERE-owned subagent — constitution-compliant PR / diff review.
+/// Issue #7.
+pub const SPECERE_REVIEWER_AGENT: AgentBundle = AgentBundle {
+    id: "specere-reviewer",
+    contents: include_str!("agents/specere-reviewer.md"),
+};
+
+const ALL_AGENTS: &[AgentBundle] = &[SPECERE_REVIEWER_AGENT];
+
+/// The session-durable rules text for the CLAUDE.md `rules` marker-fenced
+/// block. Issue #8. Sourced from a single file to avoid duplication with the
+/// constitution.
+const SPECERE_RULES_BODY: &str = include_str!("rules/specere-rules.md");
+
 /// Unit id used for marker-fence blocks we own.
 const UNIT_ID: &str = "claude-code-deploy";
 
@@ -67,6 +81,10 @@ impl Deploy for ClaudeCodeDeploy {
         ALL_SKILLS
     }
 
+    fn agents(&self) -> &'static [AgentBundle] {
+        ALL_AGENTS
+    }
+
     fn skill_dir(&self, ctx: &Ctx) -> PathBuf {
         ctx.repo().join(".claude").join("skills")
     }
@@ -75,6 +93,14 @@ impl Deploy for ClaudeCodeDeploy {
         PathBuf::from(".claude/skills")
             .join(skill_id)
             .join("SKILL.md")
+    }
+
+    fn agent_dir(&self, ctx: &Ctx) -> PathBuf {
+        ctx.repo().join(".claude").join("agents")
+    }
+
+    fn agent_rel_path(&self, agent_id: &str) -> PathBuf {
+        PathBuf::from(".claude/agents").join(format!("{agent_id}.md"))
     }
 }
 
@@ -170,6 +196,27 @@ impl AddUnit for ClaudeCodeDeploy {
             role: "extensions-fenced".into(),
         });
 
+        // 5. Issue #8: embed the session-durable rules block in CLAUDE.md via
+        //    a second marker-fenced section, disjoint from the existing
+        //    `harness` block the scaffold already writes there.
+        let claude_md = ctx.repo().join("CLAUDE.md");
+        let existing_cm = std::fs::read_to_string(&claude_md).unwrap_or_default();
+        let new_cm = specere_markers::upsert_block(
+            &existing_cm,
+            "rules",
+            None,
+            SPECERE_RULES_BODY.trim_end_matches('\n'),
+        )
+        .map_err(|e| specere_core::Error::Install(format!("CLAUDE.md rules fence: {e}")))?;
+        std::fs::write(&claude_md, &new_cm)
+            .map_err(|e| specere_core::Error::Install(format!("write CLAUDE.md: {e}")))?;
+        record.markers.push(MarkerEntry {
+            path: PathBuf::from("CLAUDE.md"),
+            unit_id: "rules".to_string(),
+            block_id: None,
+            sha256: specere_manifest::sha256_bytes(new_cm.as_bytes()),
+        });
+
         Ok(record)
     }
 
@@ -187,6 +234,21 @@ impl AddUnit for ClaudeCodeDeploy {
             } else {
                 std::fs::write(&gi_path, stripped)
                     .map_err(|e| specere_core::Error::Remove(format!("write .gitignore: {e}")))?;
+            }
+        }
+
+        // 2a. Strip CLAUDE.md rules fenced block (issue #8).
+        let claude_md = ctx.repo().join("CLAUDE.md");
+        if claude_md.exists() {
+            let text = std::fs::read_to_string(&claude_md)
+                .map_err(|e| specere_core::Error::Remove(format!("read CLAUDE.md: {e}")))?;
+            let stripped = specere_markers::strip_block(&text, "rules", None)
+                .map_err(|e| specere_core::Error::Remove(format!("CLAUDE.md rules strip: {e}")))?;
+            if stripped.is_empty() {
+                let _ = std::fs::remove_file(&claude_md);
+            } else {
+                std::fs::write(&claude_md, stripped)
+                    .map_err(|e| specere_core::Error::Remove(format!("write CLAUDE.md: {e}")))?;
             }
         }
 

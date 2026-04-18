@@ -1,6 +1,6 @@
 # Contributing to SpecERE
 
-SpecERE is early; contributions are welcome but the design is still solidifying. Please open an issue before large changes, and read [`docs/specere_v1.md`](docs/specere_v1.md) for the phase plan before proposing anything outside Phase N.
+SpecERE is early; contributions are welcome but the design is still solidifying. **Start here for non-trivial contributions:** [`docs/contributing-via-issues.md`](docs/contributing-via-issues.md) — the bug/flaw/feature → issue → sub-issues → PR pipeline. Please open an issue before large changes, and read [`docs/specere_v1.md`](docs/specere_v1.md) for the phase plan before proposing anything outside Phase N.
 
 ## The governing rule: compose, never clone
 
