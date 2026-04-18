@@ -27,11 +27,3 @@ specere-markers.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-assert_cmd.workspace = true
-predicates.workspace = true
-hex.workspace = true
-sha2.workspace = true
-# Needed so `assert_cmd::Command::cargo_bin("specere")` resolves via
-# $CARGO_BIN_EXE_specere in integration tests (dev-dep reverse-link is
-# allowed; not a cycle because specere-units → specere is not used).
-specere = { path = "../specere", version = "0.2.0-dev" }
