@@ -27,6 +27,7 @@ specere-units.workspace = true
 specere-telemetry.workspace = true
 specere-filter.workspace = true
 serde_json.workspace = true
+fs2.workspace = true
 
 [dev-dependencies]
 # Integration tests in tests/fr_p1_*.rs drive the `specere` binary via

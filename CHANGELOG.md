@@ -4,6 +4,15 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (Phase 5 partial + v0.5.0 production polish)
+- **`specere calibrate from-git`** (Phase 5 partial). New subcommand that walks `git log`, tallies per-spec co-modification counts, and emits a ready-to-paste `[coupling]` TOML snippet for `.specere/sensor-map.toml`. Configurable via `--max-commits` (default 500) and `--min-commits` (default 3 — co-modifications below this are filtered as coincidences). Greedy DAG filter rejects proposed edges that would close a cycle. New crate module `specere-filter::calibrate` with 7 unit tests + 3 integration tests in `crates/specere/tests/fr_p5_calibrate_from_git.rs`. Dogfood on the specere repo surfaces the expected `cli ↔ units / telemetry / core` coupling. Motion-matrix fit (full FR-P5) deferred — needs a durable test-history source.
+- **Advisory file lock on `filter run`** (issue #50 closure). New workspace dep `fs2 = 0.4`. `run_filter_run` now acquires an exclusive lock on `.specere/filter.lock` before loading or writing the posterior; concurrent invocations queue instead of one losing the atomic-write race. Regression test `filter_run_serialises_concurrent_invocations`.
+- **`docs/filter.md`** — end-user guide for the filter subcommand. Covers sensor-map schema, event-attr contract, run / status flags, sensor calibration, troubleshooting. The "missing sensor-map" error now points at a real document.
+
+### Fixed (v0.5.0 dogfood pass — docs/phase5-dogfood-report.md)
+- **D-04 blocker**: `specere init` now scaffolds a `[specs]` block (with a quick-start comment) so the first `specere filter run` after a clean install doesn't immediately error with "missing [specs]".
+- **D-05 blocker**: `filter-state`'s placeholder `posterior.toml` now includes `entries = []`, and `Posterior` deserialisation applies `#[serde(default)]` to `cursor`, `schema_version`, and `entries` so pre-existing placeholder shapes (from pre-v0.5.0 installs) still load cleanly. Regression test `filter_run_tolerates_pre_existing_placeholder_posterior`.
+
 ## [0.4.0] - 2026-04-18
 
 First release with a live filter engine. Closes Phase 3 (observe pipeline) and Phase 4 (filter engine) main tracks plus the phase-4-follow-ups (Python-prototype parity + throughput).

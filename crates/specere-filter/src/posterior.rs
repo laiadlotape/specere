@@ -54,9 +54,18 @@ impl Entry {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Posterior {
+    #[serde(default)]
     pub cursor: Option<String>,
+    #[serde(default = "current_schema_version")]
     pub schema_version: u32,
+    /// Defaults to empty so hand-authored or unit-created placeholder files
+    /// (without yet-computed entries) still deserialise cleanly.
+    #[serde(default)]
     pub entries: Vec<Entry>,
+}
+
+fn current_schema_version() -> u32 {
+    SCHEMA_VERSION
 }
 
 impl Default for Posterior {

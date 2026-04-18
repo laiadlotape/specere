@@ -16,6 +16,7 @@
 //! wires the CLI. Hyperparameters match `prototype/mini_specs/filter.py`.
 
 pub mod bp;
+pub mod calibrate;
 pub mod coupling;
 pub mod drive;
 pub mod hmm;
@@ -26,6 +27,7 @@ pub mod specs;
 pub mod state;
 
 pub use bp::FactorGraphBP;
+pub use calibrate::{calibrate_from_git, CalibrateOpts, CalibrationReport, CoEdge};
 pub use coupling::CouplingGraph;
 pub use drive::{parse_paths, DefaultTestSensor, DriveStats};
 pub use hmm::PerSpecHMM;
