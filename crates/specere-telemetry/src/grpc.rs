@@ -74,9 +74,9 @@ impl TraceService for TraceSvc {
                         feature_dir: attrs.get("specere.feature_dir").cloned(),
                         attrs,
                     };
-                    persist(&self.state, &event).await.map_err(|e| {
-                        Status::internal(format!("persist span: {e}"))
-                    })?;
+                    persist(&self.state, &event)
+                        .await
+                        .map_err(|e| Status::internal(format!("persist span: {e}")))?;
                     appended += 1;
                 }
             }
@@ -134,9 +134,9 @@ impl LogsService for LogsSvc {
                         feature_dir: attrs.get("specere.feature_dir").cloned(),
                         attrs,
                     };
-                    persist(&self.state, &event).await.map_err(|e| {
-                        Status::internal(format!("persist log: {e}"))
-                    })?;
+                    persist(&self.state, &event)
+                        .await
+                        .map_err(|e| Status::internal(format!("persist log: {e}")))?;
                     appended += 1;
                 }
             }
@@ -162,7 +162,12 @@ async fn persist(state: &ReceiverState, event: &Event) -> anyhow::Result<()> {
 fn flatten_kv(kvs: &[KeyValue]) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for kv in kvs {
-        if let Some(v) = kv.value.as_ref().and_then(|v| v.value.as_ref()).and_then(any_value_to_string) {
+        if let Some(v) = kv
+            .value
+            .as_ref()
+            .and_then(|v| v.value.as_ref())
+            .and_then(any_value_to_string)
+        {
             out.insert(kv.key.clone(), v);
         }
     }
@@ -218,12 +223,7 @@ pub fn load_grpc_endpoint(path: &Path) -> Option<SocketAddr> {
         endpoint: Option<String>,
     }
     let parsed: YamlCfg = serde_yaml::from_str(&raw).ok()?;
-    let ep = parsed
-        .receivers?
-        .otlp?
-        .protocols?
-        .grpc?
-        .endpoint?;
+    let ep = parsed.receivers?.otlp?.protocols?.grpc?.endpoint?;
     normalise_endpoint(&ep).parse().ok()
 }
 
