@@ -8,12 +8,14 @@
 
 ### 1. `phase-2-native-units` — finish the 5 MVP units
 
+- **Tracked at:** [issue #11](https://github.com/laiadlotape/specere/issues/11) (parent) with 5 sub-issues queued:
+  - [#12](https://github.com/laiadlotape/specere/issues/12) filter-state unit (FR-P2-001)
+  - [#13](https://github.com/laiadlotape/specere/issues/13) otel-collector unit (FR-P2-002)
+  - [#14](https://github.com/laiadlotape/specere/issues/14) ears-linter unit (FR-P2-003)
+  - [#15](https://github.com/laiadlotape/specere/issues/15) `specere init` meta-command (FR-P2-005)
+  - [#16](https://github.com/laiadlotape/specere/issues/16) `speckit::preflight` orphan detector (decisions.log carry-over)
 - **Why it's next.** Per `docs/specere_v1.md §5 Phase 2`, five units ship end-to-end before Phase 3's observe pipeline has anything to plug into.
-- **Deliverables.**
-  - Promote `filter-state`, `otel-collector`, `ears-linter` from stub to real implementations (currently `stub::StubUnit` in `crates/specere-units/src/lib.rs`).
-  - Extend `claude-code-deploy` with `specere-observe-implement` / `specere-review-check` / `specere-review-drain` skills registered under the right slash-command surface (these skills' `SKILL.md` files are already bundled; missing piece is `specere init`-time activation).
-  - `specere init` meta-command that composes all five units idempotently, per Phase 2 FR-P2-005.
-- **Carry-over from v0.2.0 review-queue drain** (`.specere/decisions.log` entry 2026-04-18): `speckit::preflight` orphan detector. The wrapper unit should detect stale `.specify/feature.json` / ghost feature-branch dirs (produced when `specify workflow run` spawns `claude -p` and that subprocess is killed mid-run). Folds into the `speckit` section of the Phase 2 spec.
+- **Workflow.** Per `docs/contributing-via-issues.md`: one sub-issue → one branch `NNN-short-slug` → one PR. Merge order: #12 first (others assume `.specere/` exists), then #13/#14 in parallel, then #15 (depends on #12/#13/#14), then #16 (independent). Pick up any ready sub-issue at session start.
 - **Phase mapping.** `docs/specere_v1.md §5.P2` (FR-P2-001 … FR-P2-007).
 
 ### 2. `phase-3-observe-pipeline` — `specere serve` + persisted events
