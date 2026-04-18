@@ -6,23 +6,12 @@
 
 ## Priority queue (highest first)
 
-### 1. `phase-2-native-units` — finish the 5 MVP units
+### 1. `phase-3-observe-pipeline` — `specere serve` + persisted events
 
-- **Tracked at:** [issue #11](https://github.com/laiadlotape/specere/issues/11) (parent) with 5 sub-issues queued:
-  - [#12](https://github.com/laiadlotape/specere/issues/12) filter-state unit (FR-P2-001)
-  - [#13](https://github.com/laiadlotape/specere/issues/13) otel-collector unit (FR-P2-002)
-  - [#14](https://github.com/laiadlotape/specere/issues/14) ears-linter unit (FR-P2-003)
-  - [#15](https://github.com/laiadlotape/specere/issues/15) `specere init` meta-command (FR-P2-005)
-  - [#16](https://github.com/laiadlotape/specere/issues/16) `speckit::preflight` orphan detector (decisions.log carry-over)
-- **Why it's next.** Per `docs/specere_v1.md §5 Phase 2`, five units ship end-to-end before Phase 3's observe pipeline has anything to plug into.
-- **Workflow.** Per `docs/contributing-via-issues.md`: one sub-issue → one branch `NNN-short-slug` → one PR. Merge order: #12 first (others assume `.specere/` exists), then #13/#14 in parallel, then #15 (depends on #12/#13/#14), then #16 (independent). Pick up any ready sub-issue at session start.
-- **Phase mapping.** `docs/specere_v1.md §5.P2` (FR-P2-001 … FR-P2-007).
-
-### 2. `phase-3-observe-pipeline` — `specere serve` + persisted events
-
-- **Why it's third.** Builds on Phase 2's `otel-collector` unit to stand up a real embedded OTLP receiver.
+- **Why it's next.** Builds on Phase 2's `otel-collector` unit (shipped via PR #21) to stand up a real embedded OTLP receiver. The \`.specere/otel-config.yml\` scaffolded today is waiting for a binary that honours it.
 - **Deliverables.** `crates/specere-telemetry` gains a `tonic` gRPC server on `localhost:4317`, an `axum` HTTP server on `:4318`, SQLite + JSONL event store, `specere serve` + `specere observe record` + `specere observe query` commands, and the `specere-observe` workflow's OTel-span-around-each-step wrapping.
 - **Phase mapping.** `docs/specere_v1.md §5.P3` (FR-P3-001 … FR-P3-006).
+- **Workflow.** Per `docs/contributing-via-issues.md`, open a parent issue + sub-issues (likely one per deliverable above) when work starts.
 
 ## Beyond the immediate queue
 
@@ -30,6 +19,12 @@ Phases 4–7 (filter engine, motion-model calibration, cross-session persistence
 
 ## Recently closed
 
+- **phase-2-native-units** (2026-04-18, parent [#11](https://github.com/laiadlotape/specere/issues/11)) — all 5 MVP units real; execution plan archived at [`docs/history/phase2-execution-plan.md`](history/phase2-execution-plan.md).
+  - [#12](https://github.com/laiadlotape/specere/issues/12) filter-state (PR #19) — `.specere/` skeleton + gitignore allowlist.
+  - [#16](https://github.com/laiadlotape/specere/issues/16) speckit orphan detector (PR #20) — `Speckit::preflight` + `specere doctor --clean-orphans`.
+  - [#13](https://github.com/laiadlotape/specere/issues/13) otel-collector (PR #21) — `.specere/otel-config.yml` + platform service artifacts (opt-in).
+  - [#14](https://github.com/laiadlotape/specere/issues/14) ears-linter (PR #22) — advisory lint rules + `before_clarify` hook + skill.
+  - [#15](https://github.com/laiadlotape/specere/issues/15) `specere init` (PR #23) — idempotent composition of all 5 units + fix for multi-owner file SHA drift.
 - **release-infra** (2026-04-18) — `cargo-dist@0.31` wired via `dist-workspace.toml`; `release.yml` (auto-generated) produces five-target binaries + shell/powershell installers on `v*.*.*` tag push; hand-written `release-guards.yml` validates tag/version match, CHANGELOG section, and main-reachability before artifacts upload. Full tag-cut procedure documented at `docs/release.md`. Spec: `specs/005-release-infra/`.
 - **auto-review** (2026-04-18) — `Claude PR review` workflow added at `.github/workflows/claude-review.yml`; enforces the constitution on every PR as advisory review comments. See `docs/auto-review.md` for the GitHub-App-vs-API-key setup. Constitution V's CI-surface companion.
 
