@@ -94,11 +94,11 @@ fn normalise_endpoint(ep: &str) -> String {
 }
 
 #[derive(Clone)]
-struct AppState {
-    repo: PathBuf,
+pub(crate) struct AppState {
+    pub(crate) repo: PathBuf,
     /// Serialise writes — SQLite is thread-safe but we want an orderly flush
     /// under SIGINT. One connection + mutex suffices for Phase-3 throughput.
-    conn: Arc<Mutex<rusqlite::Connection>>,
+    pub(crate) conn: Arc<Mutex<rusqlite::Connection>>,
 }
 
 /// Start the HTTP receiver and block until the shutdown signal fires. Caller
@@ -119,19 +119,29 @@ where
         repo: repo.clone(),
         conn: Arc::new(Mutex::new(conn)),
     };
+    serve_http_with_state(state, cfg.http_bind, shutdown).await
+}
+
+/// Start the HTTP receiver on a pre-built [`AppState`]. Used by
+/// [`serve_both`] so HTTP + gRPC share one SQLite connection.
+pub(crate) async fn serve_http_with_state<F>(
+    state: AppState,
+    bind: SocketAddr,
+    shutdown: F,
+) -> anyhow::Result<SocketAddr>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
     let app = Router::new()
         .route("/v1/traces", post(handle_traces))
         .route("/v1/logs", post(handle_logs))
         .route("/healthz", post(handle_health))
         .with_state(state.clone());
 
-    let listener = TcpListener::bind(cfg.http_bind).await?;
+    let listener = TcpListener::bind(bind).await?;
     let local = listener.local_addr()?;
     tracing::info!("specere serve: OTLP/HTTP receiver up on {}", local);
 
-    // Run the axum server with the caller's shutdown future. On shutdown
-    // trigger, checkpoint the SQLite WAL so the post-process state is clean
-    // (FR-P3-005).
     let state_for_shutdown = state.clone();
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
@@ -143,8 +153,43 @@ where
         })
         .await?;
 
-    tracing::info!("specere serve: graceful shutdown complete");
+    tracing::info!("specere serve: http graceful shutdown complete");
     Ok(local)
+}
+
+/// Run HTTP and gRPC receivers concurrently on a shared SQLite connection.
+/// Issue #34: closes FR-P3-001 fully (both protocols simultaneously).
+/// Returns once both receivers have shut down.
+pub async fn serve_both(
+    repo: PathBuf,
+    http_bind: SocketAddr,
+    grpc_bind: SocketAddr,
+    shutdown: tokio::sync::watch::Receiver<bool>,
+) -> anyhow::Result<(SocketAddr, SocketAddr)> {
+    let conn = sqlite_backend::open(&repo)?;
+    let state = AppState {
+        repo: repo.clone(),
+        conn: Arc::new(Mutex::new(conn)),
+    };
+    let grpc_state = crate::grpc::ReceiverState {
+        repo: state.repo.clone(),
+        conn: state.conn.clone(),
+    };
+
+    // Two shutdown hooks that resolve when the shared watch flips to true.
+    let mut http_shutdown = shutdown.clone();
+    let http_fut = async move {
+        let _ = http_shutdown.changed().await;
+    };
+    let mut grpc_shutdown = shutdown;
+    let grpc_fut = async move {
+        let _ = grpc_shutdown.changed().await;
+    };
+
+    let http = serve_http_with_state(state, http_bind, http_fut);
+    let grpc = crate::grpc::serve_grpc(grpc_state, grpc_bind, grpc_fut);
+
+    tokio::try_join!(http, grpc)
 }
 
 async fn handle_health() -> impl IntoResponse {
