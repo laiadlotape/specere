@@ -33,6 +33,10 @@ jobs:
     runs-on: ubuntu-latest
     # Skip on forks — the PR token can't post reviews across fork boundaries.
     if: github.event.pull_request.head.repo.full_name == github.repository
+    # Advisory check: the authoritative gates are rustfmt / clippy / test /
+    # docs-sync. If the Claude App isn't installed yet or the API-key secret
+    # is missing, this job fails silently without blocking the merge.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
         with:
