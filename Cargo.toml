@@ -7,6 +7,7 @@ members = [
     "crates/specere-manifest",
     "crates/specere-markers",
     "crates/specere-telemetry",
+    "crates/specere-filter",
 ]
 
 [workspace.package]
@@ -45,12 +46,14 @@ tonic = { version = "0.14", features = ["transport"] }
 opentelemetry-proto = { version = "0.31", features = ["gen-tonic", "trace", "logs"] }
 prost = "0.14"
 tokio-stream = { version = "0.1", features = ["net"] }
+ndarray = "0.16"
 
 specere-core = { path = "crates/specere-core", version = "0.2.0" }
 specere-units = { path = "crates/specere-units", version = "0.2.0" }
 specere-manifest = { path = "crates/specere-manifest", version = "0.2.0" }
 specere-markers = { path = "crates/specere-markers", version = "0.2.0" }
 specere-telemetry = { path = "crates/specere-telemetry", version = "0.2.0" }
+specere-filter = { path = "crates/specere-filter", version = "0.2.0" }
 
 [profile.release]
 lto = "thin"

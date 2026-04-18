@@ -1,0 +1,18 @@
+[package]
+name = "specere-filter"
+description = "SpecERE per-spec HMM / factor-graph BP / RBPF filter over the event store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+ndarray.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+approx = "0.5"
