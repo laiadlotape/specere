@@ -15,10 +15,14 @@
 //! Issues #41 (FactorGraphBP) and #42 (RBPF) extend this baseline; issue #43
 //! wires the CLI. Hyperparameters match `prototype/mini_specs/filter.py`.
 
+pub mod bp;
+pub mod coupling;
 pub mod hmm;
 pub mod motion;
 pub mod state;
 
+pub use bp::FactorGraphBP;
+pub use coupling::CouplingGraph;
 pub use hmm::PerSpecHMM;
 pub use motion::Motion;
 pub use state::{Belief, Status, TestSensor};
