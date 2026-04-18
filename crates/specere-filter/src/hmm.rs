@@ -30,11 +30,11 @@ pub struct SpecDescriptor {
 /// Baseline per-spec Bayesian filter. Beliefs are held in an `Array2<f64>`
 /// of shape `(n_specs, 3)`; each row is a simplex over [`crate::Status`].
 pub struct PerSpecHMM {
-    spec_ids: Vec<String>,
-    idx: HashMap<String, usize>,
-    support: Vec<Vec<String>>,
-    motion: Motion,
-    belief: Array2<f64>,
+    pub(crate) spec_ids: Vec<String>,
+    pub(crate) idx: HashMap<String, usize>,
+    pub(crate) support: Vec<Vec<String>>,
+    pub(crate) motion: Motion,
+    pub(crate) belief: Array2<f64>,
 }
 
 impl PerSpecHMM {
