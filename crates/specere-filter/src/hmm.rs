@@ -82,6 +82,21 @@ impl PerSpecHMM {
         self.belief.clone()
     }
 
+    /// Overwrite one spec's belief. Used by the CLI to seed from a
+    /// previously-persisted posterior (FR-P6 cross-session resume).
+    /// Silently ignores unknown spec ids — callers may pass in beliefs for
+    /// specs that have since been removed from `[specs]`. The value is
+    /// normalised defensively in case the input drifted off the simplex.
+    pub fn set_belief(&mut self, spec_id: &str, belief: &[f64]) {
+        let Some(i) = self.idx.get(spec_id).copied() else {
+            return;
+        };
+        assert_eq!(belief.len(), 3, "set_belief requires a length-3 vector");
+        let arr = Array1::from_vec(belief.to_vec());
+        let normed = normalise(&arr);
+        self.belief.row_mut(i).assign(&normed);
+    }
+
     /// Motion step. For each spec, if any of its support files intersects
     /// `files_touched`, advance its row by the mixture transition
     /// `t_mix = α·t_good + (1-α)·t_bad`; otherwise by the identity-leak

@@ -4,6 +4,14 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (Phase 6 + Phase 7 — v1.0.0 candidate)
+- **Cross-session posterior resume** (FR-P6). `run_filter_run` now seeds the filter's belief matrix from the persisted `posterior.toml` before processing new events; previously every invocation reset to uniform, which meant belief never accumulated across processes. New `PerSpecHMM::set_belief` and `FactorGraphBP::set_belief` mutators. 5 new regression tests at `crates/specere/tests/fr_p6_persistence.rs` — bit-identical posterior across restarts, cursor resume, forward-compat with unknown TOML fields, 8-event append sequence across processes.
+- **Phase 7 real-world dogfood on memaso** (`docs/phase7-memaso-dogfood.md`). 18-scenario install → calibrate → populate → observe → run → status → verify → remove → re-install round-trip against a 2.2 GB Kotlin/Android/TS project with 80 commits of history. End-to-end pipeline clean. Calibrate surfaced architecturally-meaningful coupling edges on memaso's real history.
+
+### Fixed (Phase 7 findings)
+- **FR-P6 blocker** — `run_filter_run` was re-initialising the filter to uniform on every invocation, breaking cross-session belief accumulation. Fixed as above; without this, the persistent-posterior story was fiction.
+- **P-15 filter.lock orphan** — `filter-state::remove` now best-effort sweeps `.specere/filter.lock` (ephemeral advisory-lock sidecar from issue #50) so uninstall leaves a clean `.specere/`. Tracked via `EPHEMERAL_SIDECARS` constant.
+
 ## [0.5.0] - 2026-04-18
 
 Production-readiness release. First-run experience works end-to-end on a brand-new repo. Delivers Phase 5 partial (coupling-edge calibration from git log), closes issue #50 (advisory file-lock on `filter run`), ships `docs/filter.md`.
