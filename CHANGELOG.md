@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-18
+
+**First stable release.** All seven phases of the master plan shipped. Production-ready end-to-end pipeline validated against a 2.2GB real-world target (`memaso`).
+
 ### Added (Phase 6 + Phase 7 — v1.0.0 candidate)
 - **Cross-session posterior resume** (FR-P6). `run_filter_run` now seeds the filter's belief matrix from the persisted `posterior.toml` before processing new events; previously every invocation reset to uniform, which meant belief never accumulated across processes. New `PerSpecHMM::set_belief` and `FactorGraphBP::set_belief` mutators. 5 new regression tests at `crates/specere/tests/fr_p6_persistence.rs` — bit-identical posterior across restarts, cursor resume, forward-compat with unknown TOML fields, 8-event append sequence across processes.
 - **Phase 7 real-world dogfood on memaso** (`docs/phase7-memaso-dogfood.md`). 18-scenario install → calibrate → populate → observe → run → status → verify → remove → re-install round-trip against a 2.2 GB Kotlin/Android/TS project with 80 commits of history. End-to-end pipeline clean. Calibrate surfaced architecturally-meaningful coupling edges on memaso's real history.
