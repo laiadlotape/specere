@@ -4,6 +4,9 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (Phase 2)
+- **`filter-state` unit** promoted from `stub::StubUnit` to real `AddUnit` at `crates/specere-units/src/filter_state.rs`. FR-P2-001 / issue #12. Install creates `.specere/{events.sqlite, posterior.toml, sensor-map.toml}` skeleton and writes a marker-fenced `.gitignore` block with `.specere/*` + allowlist (`!manifest.toml`, `!sensor-map.toml`, `!review-queue.md`, `!decisions.log`, `!posterior.toml`). Remove is byte-identical round-trip. Idempotent via the existing FR-P1-003 SHA-diff gate. 6 regression scenarios in `crates/specere/tests/fr_p2_001_filter_state.rs`.
+
 ### Added
 - `AgentBundle` in `crates/specere-units/src/deploy/mod.rs` alongside the existing `SkillBundle`. `Deploy` trait gains `agents()` + `agent_dir()` + `agent_rel_path()` with sensible defaults. Issue #7.
 - First SpecERE subagent shipped via `claude-code-deploy`: `specere-reviewer` at `.claude/agents/specere-reviewer.md`, a constitution-compliant PR/diff reviewer. Matches the CI `review` job's prompt but usable interactively via the `Agent` tool. Issue #7.

@@ -6,6 +6,7 @@ use specere_core::{AddUnit, Ctx, Owner};
 use specere_manifest::{record_to_unit_entry, sha256_file, Manifest};
 
 pub mod deploy;
+pub mod filter_state;
 pub mod speckit;
 
 pub const SPECERE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -28,10 +29,7 @@ pub fn lookup(id: &str, flags: &AddFlags) -> Option<Box<dyn AddUnit>> {
             },
         ))),
         "claude-code-deploy" => Some(Box::new(deploy::claude_code::ClaudeCodeDeploy)),
-        "filter-state" => Some(Box::new(stub::StubUnit {
-            id: "filter-state",
-            reason: "planned in 0.1.0 MVP; not yet implemented",
-        })),
+        "filter-state" => Some(Box::new(filter_state::FilterState)),
         "otel-collector" => Some(Box::new(stub::StubUnit {
             id: "otel-collector",
             reason: "planned in 0.1.0 MVP; not yet implemented",
