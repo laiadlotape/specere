@@ -33,15 +33,25 @@ jobs:
     runs-on: ubuntu-latest
     # Skip on forks — the PR token can't post reviews across fork boundaries.
     if: github.event.pull_request.head.repo.full_name == github.repository
-    # Advisory check: the authoritative gates are rustfmt / clippy / test /
-    # docs-sync. If the Claude App isn't installed yet or the API-key secret
-    # is missing, this job fails silently without blocking the merge.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Check for Claude credentials
+        id: creds
+        env:
+          # Secrets can't be used in job-level `if:` expressions, so gate here.
+          HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [[ "$HAS_API_KEY" != "true" ]]; then
+            echo "::warning::No ANTHROPIC_API_KEY present. Skipping Claude review."
+            echo "::warning::To activate: follow docs/auto-review.md (install Claude GitHub App, or set ANTHROPIC_API_KEY)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Run Claude PR review
+        if: steps.creds.outputs.skip != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
