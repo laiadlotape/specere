@@ -32,11 +32,37 @@ pub const SPECERE_REVIEW_DRAIN_SKILL: SkillBundle = SkillBundle {
     contents: include_str!("skills/specere-review-drain.md"),
 };
 
+/// Generic per-verb workflow observer (issue #31). Invoked from every
+/// before_<verb> / after_<verb> hook registered below under the
+/// `workflow-spans` marker block. Reads the hook's prompt to extract verb +
+/// phase and runs `specere observe record`.
+pub const SPECERE_OBSERVE_STEP_SKILL: SkillBundle = SkillBundle {
+    id: "specere-observe-step",
+    contents: include_str!("skills/specere-observe-step.md"),
+};
+
 const ALL_SKILLS: &[SkillBundle] = &[
     SPECERE_ADOPT_SKILL,
     SPECERE_OBSERVE_IMPLEMENT_SKILL,
+    SPECERE_OBSERVE_STEP_SKILL,
     SPECERE_REVIEW_CHECK_SKILL,
     SPECERE_REVIEW_DRAIN_SKILL,
+];
+
+/// Workflow-spans marker block id. Disjoint from the main `claude-code-deploy`
+/// block so the existing FR-P1-005 `after_implement` entry survives unchanged.
+const WORKFLOW_SPANS_BLOCK_ID: &str = "workflow-spans";
+
+/// The 7 SpecKit workflow verbs we emit spans around. Mirror of
+/// `docs/research/09_speckit_capabilities.md §5` per-command lifecycle table.
+const WORKFLOW_VERBS: &[&str] = &[
+    "specify",
+    "clarify",
+    "plan",
+    "tasks",
+    "analyze",
+    "checklist",
+    "implement",
 ];
 
 /// First SpecERE-owned subagent — constitution-compliant PR / diff review.
@@ -57,6 +83,77 @@ const SPECERE_RULES_BODY: &str = include_str!("rules/specere-rules.md");
 const UNIT_ID: &str = "claude-code-deploy";
 
 const GITIGNORE_LINES: &[&str] = &[".claude/settings.local.json"];
+
+/// Cleanup: drop indented verb-key lines (e.g. `  before_specify:`) that
+/// carry no hook list children. `yaml_block_fence::add` synthesises missing
+/// verb keys on install; this reverses that on remove so the file is
+/// byte-identical for SC-004 round-trip. Issue #31.
+fn strip_empty_verb_keys(yml: &str) -> String {
+    let lines: Vec<&str> = yml.lines().collect();
+    let mut keep = vec![true; lines.len()];
+    let verb_key_re = regex::Regex::new(
+        r"^  (before|after)_(specify|clarify|plan|tasks|analyze|checklist|implement):\s*$",
+    )
+    .unwrap();
+    for (i, line) in lines.iter().enumerate() {
+        if verb_key_re.is_match(line) {
+            // Look at the next non-blank line; if it's another key (verb or
+            // top-level) or EOF, this verb has no children → drop.
+            let mut j = i + 1;
+            while j < lines.len() && lines[j].trim().is_empty() {
+                j += 1;
+            }
+            let has_children =
+                j < lines.len() && (lines[j].starts_with("  - ") || lines[j].starts_with("    "));
+            if !has_children {
+                keep[i] = false;
+            }
+        }
+    }
+    let mut out: Vec<&str> = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if keep[i] {
+            out.push(line);
+        }
+    }
+    let mut s = out.join("\n");
+    if yml.ends_with('\n') {
+        s.push('\n');
+    }
+    s
+}
+
+/// Build an observe-step hook entry body for a given verb + phase. Used by
+/// issue #31's 13-hook workflow-spans block.
+fn observe_step_entry(verb: &str, phase: &str) -> String {
+    format!(
+        "  - extension: specere\n\
+         \x20   command: specere.observe.step\n\
+         \x20   enabled: true\n\
+         \x20   optional: true\n\
+         \x20   prompt: \"Record {phase} {verb} span: specere observe record --source={verb} --attr phase={phase} --attr gen_ai.system=claude-code --attr specere.workflow_step={verb} --feature-dir=$FEATURE_DIR\"\n\
+         \x20   description: \"SpecERE workflow span ({phase} {verb}) — FR-P3-002\"\n\
+         \x20   condition: null"
+    )
+}
+
+/// Add one hook entry under `hooks.<phase>_<verb>` in `extensions.yml`, fenced
+/// by a marker block whose id is `WORKFLOW_SPANS_BLOCK_ID`. Idempotent via
+/// `yaml_block_fence::add`'s existing skip-if-present logic (keyed per block
+/// id), but since all 13 entries share the same block id they'd collide — so
+/// here we thread a **per-verb-phase block id suffix** instead.
+fn register_observe_step_hook(
+    yml: &str,
+    verb: &str,
+    phase: &str,
+    base_block_id: &str,
+) -> Result<String> {
+    let block_id = format!("{base_block_id}-{phase}-{verb}");
+    let hook_key = format!("{phase}_{verb}");
+    let entry = observe_step_entry(verb, phase);
+    specere_markers::yaml_block_fence::add(yml, &block_id, &hook_key, &entry)
+        .map_err(|e| specere_core::Error::Install(format!("yaml_block_fence add {block_id}: {e}")))
+}
 
 /// The `after_implement` hook entry, exactly as contracts/extensions-mutation.md §Marker convention.
 const AFTER_IMPLEMENT_ENTRY: &str = concat!(
@@ -180,6 +277,38 @@ impl AddUnit for ClaudeCodeDeploy {
             sha256: specere_manifest::sha256_bytes(new_yml.as_bytes()),
         });
 
+        // 3b. Issue #31: add before_<verb> + after_<verb> hooks for every
+        //     workflow verb (skipping after_implement — already registered
+        //     above under the main UNIT_ID block to preserve FR-P1-005).
+        //     Each hook points at the generic `specere.observe.step` skill.
+        let mut yml_with_spans = new_yml;
+        for verb in WORKFLOW_VERBS {
+            yml_with_spans = register_observe_step_hook(
+                &yml_with_spans,
+                verb,
+                "before",
+                WORKFLOW_SPANS_BLOCK_ID,
+            )?;
+            if *verb == "implement" {
+                continue;
+            }
+            yml_with_spans = register_observe_step_hook(
+                &yml_with_spans,
+                verb,
+                "after",
+                WORKFLOW_SPANS_BLOCK_ID,
+            )?;
+        }
+        std::fs::write(&ext_path, &yml_with_spans).map_err(|e| {
+            specere_core::Error::Install(format!("write .specify/extensions.yml (spans): {e}"))
+        })?;
+        record.markers.push(MarkerEntry {
+            path: PathBuf::from(".specify/extensions.yml"),
+            unit_id: WORKFLOW_SPANS_BLOCK_ID.to_string(),
+            block_id: Some("workflow-spans".to_string()),
+            sha256: specere_manifest::sha256_bytes(yml_with_spans.as_bytes()),
+        });
+
         // 4. Whole-file FileEntry records intentionally omitted for .gitignore
         //    and .specify/extensions.yml — both are multi-owner files (other
         //    units add their own fenced blocks), so a whole-file SHA on our
@@ -255,8 +384,26 @@ impl AddUnit for ClaudeCodeDeploy {
                     inner,
                 });
             }
-            let stripped = specere_markers::yaml_block_fence::remove(&text, UNIT_ID)
+            // Issue #31: strip all workflow-spans sub-blocks first
+            // (one per phase-verb combination).
+            let mut stripped = text;
+            for verb in WORKFLOW_VERBS {
+                for phase in ["before", "after"] {
+                    let block_id = format!("{WORKFLOW_SPANS_BLOCK_ID}-{phase}-{verb}");
+                    stripped = specere_markers::yaml_block_fence::remove(&stripped, &block_id)
+                        .map_err(|e| {
+                            specere_core::Error::Remove(format!(
+                                "extensions.yml workflow-spans strip {block_id}: {e}"
+                            ))
+                        })?;
+                }
+            }
+            let stripped = specere_markers::yaml_block_fence::remove(&stripped, UNIT_ID)
                 .map_err(|e| specere_core::Error::Remove(format!("extensions.yml strip: {e}")))?;
+            // Issue #31: yaml_block_fence::add synthesises missing verb keys
+            // on install; strip doesn't undo them. Sweep empty `<verb>:` lines
+            // so remove is byte-identical round-trippable.
+            let stripped = strip_empty_verb_keys(&stripped);
             std::fs::write(&ext_path, stripped)
                 .map_err(|e| specere_core::Error::Remove(format!("write extensions.yml: {e}")))?;
         }
