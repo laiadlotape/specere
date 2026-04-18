@@ -13,8 +13,8 @@ pub mod serve;
 pub mod sqlite_backend;
 
 pub use event_store::{Event, QueryFilters};
-pub use grpc::serve_grpc;
-pub use serve::{serve_http, ServeConfig};
+pub use grpc::{default_grpc_bind, load_grpc_endpoint, serve_grpc};
+pub use serve::{serve_both, serve_http, ServeConfig};
 
 /// Legacy stub. Kept for back-compat until the `Observe` CLI migrates entirely
 /// to the record / query subcommands.

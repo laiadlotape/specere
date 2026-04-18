@@ -33,18 +33,9 @@ use crate::sqlite_backend;
 /// Shared state across both OTLP receivers — one SQLite connection guarded
 /// by a tokio mutex so gRPC + HTTP serialise their writes.
 #[derive(Clone)]
-pub(crate) struct ReceiverState {
+pub struct ReceiverState {
     pub repo: PathBuf,
     pub conn: Arc<Mutex<rusqlite::Connection>>,
-}
-
-impl ReceiverState {
-    pub fn new(repo: PathBuf, conn: rusqlite::Connection) -> Self {
-        Self {
-            repo,
-            conn: Arc::new(Mutex::new(conn)),
-        }
-    }
 }
 
 /// gRPC TraceService impl — each span in the batch becomes one Event.
@@ -204,7 +195,7 @@ fn unix_nano_to_rfc3339(nanos: u64) -> Option<String> {
 
 /// Parse `otel-config.yml` and extract the gRPC endpoint. Returns None if
 /// the config is missing / malformed / has no gRPC section.
-pub(crate) fn load_grpc_endpoint(path: &Path) -> Option<SocketAddr> {
+pub fn load_grpc_endpoint(path: &Path) -> Option<SocketAddr> {
     let raw = std::fs::read_to_string(path).ok()?;
     #[derive(Deserialize)]
     struct YamlCfg {
@@ -237,7 +228,7 @@ pub(crate) fn load_grpc_endpoint(path: &Path) -> Option<SocketAddr> {
 }
 
 /// Default gRPC bind (`127.0.0.1:4317`). Used when the YAML config is absent.
-pub(crate) fn default_grpc_bind() -> SocketAddr {
+pub fn default_grpc_bind() -> SocketAddr {
     "127.0.0.1:4317".parse().unwrap()
 }
 
