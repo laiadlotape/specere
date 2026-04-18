@@ -11,7 +11,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.78"
 authors = ["laiadlotape"]
@@ -50,12 +50,12 @@ ndarray = "0.16"
 rand = "0.8"
 fs2 = "0.4"
 
-specere-core = { path = "crates/specere-core", version = "1.0.0" }
-specere-units = { path = "crates/specere-units", version = "1.0.0" }
-specere-manifest = { path = "crates/specere-manifest", version = "1.0.0" }
-specere-markers = { path = "crates/specere-markers", version = "1.0.0" }
-specere-telemetry = { path = "crates/specere-telemetry", version = "1.0.0" }
-specere-filter = { path = "crates/specere-filter", version = "1.0.0" }
+specere-core = { path = "crates/specere-core", version = "1.0.1" }
+specere-units = { path = "crates/specere-units", version = "1.0.1" }
+specere-manifest = { path = "crates/specere-manifest", version = "1.0.1" }
+specere-markers = { path = "crates/specere-markers", version = "1.0.1" }
+specere-telemetry = { path = "crates/specere-telemetry", version = "1.0.1" }
+specere-filter = { path = "crates/specere-filter", version = "1.0.1" }
 
 [profile.release]
 lto = "thin"

@@ -4,6 +4,23 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-18
+
+Depth-audit release for `specere calibrate from-git`. One correctness bug fixed + two UX improvements. See `docs/phase5-calibrate-audit.md` for the full 20-scenario traceability.
+
+### Fixed
+- **Path-prefix false-match across sibling directories** (audit C-01 / C-13). Support `"src/auth"` erroneously matched commits touching only `"src/auth_helpers/*"` because `str::starts_with` has no notion of path boundaries. Every user who omitted the trailing slash silently got wrong per-spec touch counts and inflated coupling edges. Fixed by normalising each support entry into `(bare, bare+"/")` and matching against both — exact file equality OR directory-with-separator prefix. Regression tests: `sibling_directories_do_not_false_match`, `trailing_slash_support_is_equivalent_to_bare`, `exact_file_match_works`.
+- **Empty-repo UX** (audit C-02). `calibrate from-git` on a repo with no commits yet used to print `fatal: your current branch 'main' does not have any commits yet`. Now: `calibrate: <path> has no commits yet — make at least one commit before running \`specere calibrate\``.
+- **Non-git-dir UX** (audit C-11). Running outside a git repository used to print `fatal: not a git repository`. Now: `calibrate: <path> is not a git repository — run \`git init\` first`.
+
+### Validated (no change — documenting for the public record)
+- Threshold boundary semantics (`--min-commits` uses `>=`).
+- Merge-commit handling (empty merges excluded via `parse_git_log`'s empty-list guard).
+- Renames, deletions, binary files, UTF-8 paths with spaces + CJK.
+- Output roundtrips cleanly through the `[coupling]` loader.
+- Spec-ordering determinism in `sensor-map.toml` does not affect calibrate output.
+- `--max-commits` caps exactly, `--repo` override works with absolute paths.
+
 ## [1.0.0] - 2026-04-18
 
 **First stable release.** All seven phases of the master plan shipped. Production-ready end-to-end pipeline validated against a 2.2GB real-world target (`memaso`).
