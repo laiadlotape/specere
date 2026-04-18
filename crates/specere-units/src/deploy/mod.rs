@@ -145,11 +145,7 @@ fn rel_to_repo(repo: &Path, abs: &Path) -> PathBuf {
     // Linux/macOS (which produce `.claude/skills/...`) and Windows (which
     // produces `.claude\skills\...`). All SpecERE paths are repo-relative
     // and POSIX-style.
-    PathBuf::from(
-        relative
-            .to_string_lossy()
-            .replace('\\', "/"),
-    )
+    PathBuf::from(relative.to_string_lossy().replace('\\', "/"))
 }
 
 fn is_dir_empty(p: &Path) -> std::io::Result<bool> {
