@@ -1,0 +1,62 @@
+name: release-guards
+
+# Pre-release sanity checks for tag pushes. Runs in parallel with the
+# cargo-dist-generated release.yml but on a much faster path (git-only, no
+# builds). A red X here means: delete the tag + Release, fix the mismatch,
+# retag. See docs/release.md § Guards failure modes.
+#
+# This workflow is SpecERE-owned (hand-written, not cargo-dist-generated)
+# so we can freely edit it without fighting `dist generate`.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  guards:
+    name: release guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Guard 1 — tag name matches Cargo.toml version (FR-RI-003)
+        env:
+          TAG_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          STRIPPED="${TAG_REF#v}"
+          CARGO_VER="$(grep -A3 '^\[workspace\.package\]' Cargo.toml | grep '^version' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
+          if [[ -z "$CARGO_VER" ]]; then
+            echo "::error::Could not extract workspace.package.version from Cargo.toml"
+            exit 1
+          fi
+          if [[ "$STRIPPED" != "$CARGO_VER" ]]; then
+            echo "::error::Tag '$TAG_REF' does not match Cargo.toml version '$CARGO_VER'. Delete the tag, bump version (or fix the tag), and retag."
+            exit 1
+          fi
+          echo "✓ tag $TAG_REF matches Cargo.toml version $CARGO_VER"
+      - name: Guard 2 — CHANGELOG section exists (FR-RI-004)
+        env:
+          TAG_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          STRIPPED="${TAG_REF#v}"
+          if ! grep -qE "^## \[${STRIPPED}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md is missing '## [${STRIPPED}]' section. Move the [Unreleased] entries into a [${STRIPPED}] section before tagging. See docs/release.md § Tag-cut procedure."
+            exit 1
+          fi
+          echo "✓ CHANGELOG section [$STRIPPED] present"
+      - name: Guard 3 — tag commit is reachable from main (FR-RI-005)
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          TAG_SHA="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$TAG_SHA" origin/main; then
+            echo "::error::Tag commit $TAG_SHA is not reachable from origin/main. Releases are cut from main only."
+            exit 1
+          fi
+          echo "✓ tag commit reachable from main"
