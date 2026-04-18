@@ -492,6 +492,14 @@ fn run_filter_run(
         ))
     };
 
+    // FR-P6 cross-session resume: seed the backend's belief buffer from the
+    // persisted posterior so repeated `filter run` invocations don't lose
+    // accumulated belief. Entries for specs no longer in `[specs]` are
+    // silently dropped by `set_belief`.
+    for entry in &existing.entries {
+        hmm.set_belief(&entry.spec_id, &[entry.p_unk, entry.p_sat, entry.p_vio]);
+    }
+
     let sensor = specere_filter::DefaultTestSensor;
     let mut processed = 0usize;
     let mut skipped = 0usize;
@@ -579,6 +587,13 @@ impl FilterBackend {
         match self {
             Self::Hmm(f) => f.marginal(spec_id),
             Self::Bp(f) => f.marginal(spec_id),
+        }
+    }
+    /// Seed one spec's belief — delegates into the backend's HMM buffer.
+    fn set_belief(&mut self, spec_id: &str, belief: &[f64]) {
+        match self {
+            Self::Hmm(f) => f.set_belief(spec_id, belief),
+            Self::Bp(f) => f.set_belief(spec_id, belief),
         }
     }
 }

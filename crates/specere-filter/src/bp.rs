@@ -82,6 +82,11 @@ impl FactorGraphBP {
     pub fn all_marginals(&self) -> Array2<f64> {
         self.hmm.all_marginals()
     }
+    /// Seed one spec's belief — delegates to the inner HMM. Used by the
+    /// CLI to resume from a persisted posterior across process boundaries.
+    pub fn set_belief(&mut self, spec_id: &str, belief: &[f64]) {
+        self.hmm.set_belief(spec_id, belief);
+    }
 
     /// Number of coupling edges resolved against known spec ids. Edges that
     /// reference unknown specs are dropped at construction; this returns

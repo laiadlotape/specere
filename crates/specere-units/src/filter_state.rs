@@ -199,6 +199,16 @@ impl AddUnit for FilterState {
             })?;
         }
 
+        // 3) Sweep ephemeral sidecars (best-effort; they're runtime artefacts
+        //    that never carry user content). Avoids orphaned `.specere/filter.lock`
+        //    after remove (dogfood finding P-15).
+        for rel in EPHEMERAL_SIDECARS {
+            let abs = ctx.repo().join(rel);
+            if abs.exists() {
+                let _ = std::fs::remove_file(&abs);
+            }
+        }
+
         Ok(())
     }
 }
@@ -210,3 +220,9 @@ fn skeleton_files() -> [(&'static str, &'static [u8]); 3] {
         ("sensor-map.toml", SENSOR_MAP_TOML_CONTENT.as_bytes()),
     ]
 }
+
+/// Ephemeral sidecar files that aren't tracked by SHA but are owned by
+/// this unit in the "sweep on remove" sense. `filter.lock` is created on
+/// demand by `specere filter run` and has no content we care about
+/// preserving (dogfood finding P-15). Best-effort delete on remove.
+const EPHEMERAL_SIDECARS: &[&str] = &[".specere/filter.lock"];
