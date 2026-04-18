@@ -26,8 +26,51 @@ pub enum Error {
     Install(String),
     #[error("remove failed: {0}")]
     Remove(String),
+    /// FR-P1-003. At least one owned file's on-disk SHA diverges from the
+    /// manifest. User should re-run with `--adopt-edits` to accept the edit.
+    #[error("cannot re-install `{unit}`; {} owned file(s) have been edited", files.len())]
+    AlreadyInstalledMismatch {
+        unit: String,
+        files: Vec<std::path::PathBuf>,
+    },
+    /// FR-P1-008. A file SpecERE must read is syntactically invalid.
+    #[error("parse failure in `{path}` ({format}): {inner}", path = path.display())]
+    ParseFailure {
+        path: std::path::PathBuf,
+        format: &'static str,
+        inner: String,
+    },
+    /// Clarified edge case. An owned file was deleted from disk;
+    /// `--adopt-edits` does not cover deletions.
+    #[error("owned file `{path}` for unit `{unit}` was deleted; run `specere remove {unit}` then `specere add {unit}` instead", path = path.display())]
+    DeletedOwnedFile {
+        unit: String,
+        path: std::path::PathBuf,
+    },
+    /// Only raised by `specere remove speckit --delete-branch` when the
+    /// working tree is dirty.
+    #[error("cannot delete branch `{branch}`: working tree has uncommitted changes (run `git stash` first)")]
+    BranchDirty { branch: String },
+    /// Only raised by `specere remove speckit --delete-branch` when the
+    /// branch was not SpecERE-created.
+    #[error("refusing to delete branch `{branch}`: not created by SpecERE (branch_was_created_by_specere=false)")]
+    BranchNotOurs { branch: String },
     #[error("other: {0}")]
     Other(#[from] anyhow::Error),
+}
+
+impl Error {
+    /// Stable exit code per `specs/002-phase-1-bugfix-0-2-0/contracts/cli.md`.
+    pub fn exit_code(&self) -> i32 {
+        match self {
+            Self::AlreadyInstalledMismatch { .. } => 2,
+            Self::ParseFailure { .. } => 3,
+            Self::DeletedOwnedFile { .. } => 4,
+            Self::BranchDirty { .. } => 6,
+            Self::BranchNotOurs { .. } => 7,
+            _ => 1,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -12,8 +12,15 @@
 //! * `remove` delegates first to SpecKit's own removal verbs (when they exist),
 //!   then falls back to a directory wipe behind confirmation semantics.
 //!
-//! If the user wants file-level tracking of what SpecKit produced, they read
-//! SpecKit's own manifest — it is authoritative, not ours.
+//! Phase 1 additions (FR-P1-001/002/007):
+//! * Detects ambient git-kind; drops `--no-git` iff `.git/` exists.
+//! * Auto-creates a feature branch (`000-baseline` default, overridable via
+//!   `--branch` CLI flag or `$SPECERE_FEATURE_BRANCH` env var).
+//! * Records the resulting branch name + whether SpecERE created it in
+//!   `install_config` so `remove --delete-branch` can read both fields.
+//!
+//! Test mode: setting `SPECERE_TEST_SKIP_UVX=1` bypasses the actual `uvx`
+//! subprocess so integration tests can exercise branch logic offline.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -26,7 +33,61 @@ pub const PINNED_SPECKIT_TAG: &str = "v0.7.3";
 /// Default agent integration. Overridable via `specere add speckit -- --integration=<agent>` (flag plumbing in a later release).
 pub const DEFAULT_INTEGRATION: &str = "claude";
 
-pub struct Speckit;
+/// Default feature-branch name created on a git target.
+pub const DEFAULT_FEATURE_BRANCH: &str = "000-baseline";
+
+/// Env var override for the auto-created feature branch name.
+pub const ENV_FEATURE_BRANCH: &str = "SPECERE_FEATURE_BRANCH";
+
+/// Test-only: when set to `1`, `install` skips the `uvx specify init`
+/// subprocess call. The branch-create path still runs so integration tests
+/// can exercise it offline.
+pub const ENV_TEST_SKIP_UVX: &str = "SPECERE_TEST_SKIP_UVX";
+
+#[derive(Debug, Default, Clone)]
+pub struct SpeckitFlags {
+    /// CLI `--branch <name>` override; wins over env var when set.
+    pub branch: Option<String>,
+}
+
+pub struct Speckit {
+    pub flags: SpeckitFlags,
+}
+
+impl Speckit {
+    pub fn new() -> Self {
+        Self {
+            flags: SpeckitFlags::default(),
+        }
+    }
+
+    pub fn with_flags(flags: SpeckitFlags) -> Self {
+        Self { flags }
+    }
+
+    /// Resolve the target branch name per priority: CLI flag → env var →
+    /// default. Returns `None` for non-git targets (caller skips branch ops).
+    fn resolved_branch(&self, ctx: &Ctx) -> Option<String> {
+        if !is_git_repo(ctx) {
+            return None;
+        }
+        if let Some(b) = self.flags.branch.clone() {
+            return Some(b);
+        }
+        if let Ok(b) = std::env::var(ENV_FEATURE_BRANCH) {
+            if !b.is_empty() {
+                return Some(b);
+            }
+        }
+        Some(DEFAULT_FEATURE_BRANCH.to_string())
+    }
+}
+
+impl Default for Speckit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl AddUnit for Speckit {
     fn id(&self) -> &'static str {
@@ -37,47 +98,81 @@ impl AddUnit for Speckit {
         PINNED_SPECKIT_TAG
     }
 
-    fn preflight(&self, _ctx: &Ctx) -> Result<Plan> {
+    fn preflight(&self, ctx: &Ctx) -> Result<Plan> {
         let mut plan = Plan::default();
-        if !command_exists("uvx") {
+        if !test_skip_uvx() && !command_exists("uvx") && !command_exists("specify") {
             return Err(specere_core::Error::Preflight(
-                "`uvx` not found in PATH; install `uv` (https://github.com/astral-sh/uv) to use `specere add speckit`".into(),
+                "`uvx` (or an installed `specify`) not found in PATH; install `uv` \
+                 (https://github.com/astral-sh/uv) or run `uv tool install \
+                 git+https://github.com/github/spec-kit` to use `specere add speckit`"
+                    .into(),
             ));
         }
         plan.ops.push(PlanOp::RunCommand {
             program: "uvx".into(),
-            args: uvx_init_args(),
+            args: uvx_init_args(is_git_repo(ctx)),
         });
+        if let Some(branch) = self.resolved_branch(ctx) {
+            plan.ops.push(PlanOp::RunCommand {
+                program: "git".into(),
+                args: vec!["checkout".into(), "-b".into(), branch],
+            });
+        }
         Ok(plan)
     }
 
     fn install(&self, ctx: &Ctx, _plan: &Plan) -> Result<Record> {
-        let status = Command::new("uvx")
-            .args(uvx_init_args())
-            .current_dir(ctx.repo())
-            .status()
-            .map_err(|e| specere_core::Error::Install(format!("failed to invoke uvx: {e}")))?;
-        if !status.success() {
-            return Err(specere_core::Error::Install(format!(
-                "upstream `specify init` exited with {:?}",
-                status.code()
-            )));
+        let is_git = is_git_repo(ctx);
+        let branch = self.resolved_branch(ctx);
+
+        // 1. Run `uvx specify init` unless the test env bypasses it.
+        if !test_skip_uvx() {
+            let status = Command::new("uvx")
+                .args(uvx_init_args(is_git))
+                .current_dir(ctx.repo())
+                .status()
+                .map_err(|e| specere_core::Error::Install(format!("failed to invoke uvx: {e}")))?;
+            if !status.success() {
+                return Err(specere_core::Error::Install(format!(
+                    "upstream `specify init` exited with {:?}",
+                    status.code()
+                )));
+            }
+        }
+
+        // 2. Create or switch to the feature branch on git targets.
+        let mut branch_was_created_by_specere = false;
+        if let Some(b) = branch.as_deref() {
+            if branch_exists(ctx, b) {
+                git_checkout(ctx, b)?;
+            } else {
+                git_checkout_new(ctx, b)?;
+                branch_was_created_by_specere = true;
+            }
         }
 
         let mut record = Record::default();
         record.notes.push(format!(
             "scaffolded via uvx @ {PINNED_SPECKIT_TAG}; file-level tracking is SpecKit's responsibility at `.specify/integrations/integration.json`"
         ));
+
+        // 3. Stash branch info on the Record so the dispatcher can push it
+        //    into install_config before saving the manifest.
+        if let Some(b) = branch {
+            record.notes.push(format!("branch_name={b}"));
+            record.notes.push(format!(
+                "branch_was_created_by_specere={branch_was_created_by_specere}"
+            ));
+        }
+
         Ok(record)
     }
 
     fn remove(&self, ctx: &Ctx, _record: &Record) -> Result<()> {
-        // 1) Prefer SpecKit's own removal verb if it exists. This is the
-        //    fine-grained path that respects any user edits inside `.specify/`.
+        // 1) Prefer SpecKit's own removal verb if it exists.
         let integration_removed = try_upstream_integration_uninstall(ctx);
 
-        // 2) For the `.specify/` and `specs/` directories SpecKit leaves
-        //    behind, fall back to wholesale removal.
+        // 2) Fall back to wholesale removal of the directories SpecKit leaves.
         let specify_dir = ctx.repo().join(".specify");
         let specs_dir = ctx.repo().join("specs");
         let claude_md = ctx.repo().join("CLAUDE.md");
@@ -89,8 +184,6 @@ impl AddUnit for Speckit {
                 })?;
             }
         }
-        // Only remove CLAUDE.md if it was created by SpecKit (heuristic:
-        // contains a SpecKit-generated marker). User-authored files stay.
         if claude_md.exists() {
             let content = std::fs::read_to_string(&claude_md).unwrap_or_default();
             if content.contains("spec-kit") || content.contains("/speckit.") {
@@ -112,8 +205,8 @@ impl AddUnit for Speckit {
     }
 }
 
-fn uvx_init_args() -> Vec<String> {
-    vec![
+fn uvx_init_args(is_git: bool) -> Vec<String> {
+    let mut args = vec![
         "--from".into(),
         format!(
             "git+https://github.com/github/spec-kit.git@{}",
@@ -125,8 +218,57 @@ fn uvx_init_args() -> Vec<String> {
         "--integration".into(),
         DEFAULT_INTEGRATION.into(),
         "--force".into(),
-        "--no-git".into(),
-    ]
+    ];
+    // FR-P1-001: only pass `--no-git` on non-git targets.
+    if !is_git {
+        args.push("--no-git".into());
+    }
+    args
+}
+
+fn is_git_repo(ctx: &Ctx) -> bool {
+    ctx.repo().join(".git").exists()
+}
+
+fn branch_exists(ctx: &Ctx, branch: &str) -> bool {
+    Command::new("git")
+        .args(["rev-parse", "--verify", "--quiet", branch])
+        .current_dir(ctx.repo())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn git_checkout(ctx: &Ctx, branch: &str) -> Result<()> {
+    let status = Command::new("git")
+        .args(["checkout", branch])
+        .current_dir(ctx.repo())
+        .status()
+        .map_err(|e| specere_core::Error::Install(format!("git checkout failed: {e}")))?;
+    if !status.success() {
+        return Err(specere_core::Error::Install(format!(
+            "git checkout {branch} exited non-zero"
+        )));
+    }
+    Ok(())
+}
+
+fn git_checkout_new(ctx: &Ctx, branch: &str) -> Result<()> {
+    let status = Command::new("git")
+        .args(["checkout", "-b", branch])
+        .current_dir(ctx.repo())
+        .status()
+        .map_err(|e| specere_core::Error::Install(format!("git checkout -b failed: {e}")))?;
+    if !status.success() {
+        return Err(specere_core::Error::Install(format!(
+            "git checkout -b {branch} exited non-zero"
+        )));
+    }
+    Ok(())
+}
+
+fn test_skip_uvx() -> bool {
+    matches!(std::env::var(ENV_TEST_SKIP_UVX).as_deref(), Ok("1"))
 }
 
 fn command_exists(program: &str) -> bool {

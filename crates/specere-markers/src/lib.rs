@@ -20,9 +20,14 @@ pub enum Error {
     EndMissing { unit: String },
     #[error("multiple begin markers for unit `{unit}`")]
     Duplicate { unit: String },
+    #[error("marker pair for unit `{unit}` is unpaired")]
+    Unpaired { unit: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub mod text_block_fence;
+pub mod yaml_block_fence;
 
 pub fn begin_line(unit: &str, block: Option<&str>) -> String {
     match block {

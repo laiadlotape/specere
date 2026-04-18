@@ -12,3 +12,4 @@ homepage.workspace = true
 [dependencies]
 anyhow.workspace = true
 thiserror.workspace = true
+serde_yaml.workspace = true
