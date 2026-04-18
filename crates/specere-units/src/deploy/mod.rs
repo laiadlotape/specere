@@ -27,13 +27,31 @@ pub struct SkillBundle {
     pub contents: &'static str,
 }
 
+/// A subagent bundle SpecERE ships and deploys into agent harnesses.
+///
+/// Shape mirrors `SkillBundle` deliberately — same fields, same embed pattern.
+/// The difference is runtime: skills are progressive-disclosure procedures
+/// loaded on-demand; agents are isolated-context delegates the main session
+/// invokes via the `Agent` tool. See `docs/auto-review.md` and issue #6 for
+/// the rationale.
+#[derive(Debug, Clone, Copy)]
+pub struct AgentBundle {
+    pub id: &'static str,
+    pub contents: &'static str,
+}
+
 /// The harness-specific contract. Every deployer describes *where* it puts
-/// skills in the target repo; the generic install/remove logic below does the
-/// rest.
+/// skills and agents in the target repo; the generic install/remove logic
+/// below does the rest.
 pub trait Deploy {
     fn harness_id(&self) -> &'static str;
 
     fn skills(&self) -> &'static [SkillBundle];
+
+    /// Subagents the deployer ships. Default: empty (no agents). Issue #7.
+    fn agents(&self) -> &'static [AgentBundle] {
+        &[]
+    }
 
     /// Absolute directory into which a given skill's `SKILL.md` is written.
     /// Convention: `<repo>/<harness-skill-dir>/<skill.id>/SKILL.md`.
@@ -42,6 +60,22 @@ pub trait Deploy {
     /// Relative path of the skill file inside the target repo, given the
     /// skill's id. Used by manifest persistence.
     fn skill_rel_path(&self, skill_id: &str) -> PathBuf;
+
+    /// Absolute directory into which a given subagent's `<id>.md` is written.
+    /// Convention for Claude Code: `<repo>/.claude/agents/`. Default returns
+    /// the skill dir's parent + `agents/`; harness impls override for precision.
+    fn agent_dir(&self, ctx: &Ctx) -> PathBuf {
+        self.skill_dir(ctx)
+            .parent()
+            .map(|p| p.join("agents"))
+            .unwrap_or_else(|| ctx.repo().join(".claude").join("agents"))
+    }
+
+    /// Relative path of the agent file inside the target repo. Default:
+    /// `.claude/agents/<id>.md`. Harness impls override for precision.
+    fn agent_rel_path(&self, agent_id: &str) -> PathBuf {
+        PathBuf::from(".claude/agents").join(format!("{agent_id}.md"))
+    }
 }
 
 /// Generic `preflight` for any deployer.
@@ -56,6 +90,18 @@ pub fn plan<D: Deploy + ?Sized>(deployer: &D, ctx: &Ctx) -> Result<Plan> {
             path: rel,
             summary: format!("{} skill bundle", skill.id),
         });
+    }
+    if !deployer.agents().is_empty() {
+        plan.ops.push(PlanOp::CreateDir {
+            path: deployer.agent_dir(ctx),
+        });
+        for agent in deployer.agents() {
+            let rel = deployer.agent_rel_path(agent.id);
+            plan.ops.push(PlanOp::WriteFile {
+                path: rel,
+                summary: format!("{} agent bundle", agent.id),
+            });
+        }
     }
     Ok(plan)
 }
@@ -92,10 +138,36 @@ pub fn install<D: Deploy + ?Sized>(deployer: &D, ctx: &Ctx, _plan: &Plan) -> Res
         });
     }
 
+    // Agents (issue #7) — flat file layout, one file per agent id.
+    let agents = deployer.agents();
+    if !agents.is_empty() {
+        let agent_dir = deployer.agent_dir(ctx);
+        std::fs::create_dir_all(&agent_dir).map_err(|e| {
+            specere_core::Error::Install(format!("create {}: {e}", agent_dir.display()))
+        })?;
+        record.dirs.push(rel_to_repo(ctx.repo(), &agent_dir));
+
+        for agent in agents {
+            let agent_file = agent_dir.join(format!("{}.md", agent.id));
+            std::fs::write(&agent_file, agent.contents).map_err(|e| {
+                specere_core::Error::Install(format!("write {}: {e}", agent_file.display()))
+            })?;
+
+            let sha = sha256_bytes(agent.contents.as_bytes());
+            record.files.push(FileEntry {
+                path: rel_to_repo(ctx.repo(), &agent_file),
+                sha256_post: sha,
+                owner: Owner::Specere,
+                role: format!("{}-agent-{}", deployer.harness_id(), agent.id),
+            });
+        }
+    }
+
     record.notes.push(format!(
-        "{} deployer installed {} skill(s)",
+        "{} deployer installed {} skill(s) + {} agent(s)",
         deployer.harness_id(),
-        deployer.skills().len()
+        deployer.skills().len(),
+        agents.len()
     ));
     Ok(record)
 }
