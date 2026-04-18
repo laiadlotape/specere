@@ -99,6 +99,17 @@ impl AddUnit for Speckit {
     }
 
     fn preflight(&self, ctx: &Ctx) -> Result<Plan> {
+        // Issue #16: refuse on orphan .specify/ state before any other work.
+        if let Some(state) = crate::orphan::detect(ctx.repo()) {
+            return Err(specere_core::Error::OrphanFeatureDir {
+                feature_dir: state
+                    .feature_dir
+                    .strip_prefix(ctx.repo())
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or(state.feature_dir),
+            });
+        }
+
         let mut plan = Plan::default();
         if !test_skip_uvx() && !command_exists("uvx") && !command_exists("specify") {
             return Err(specere_core::Error::Preflight(

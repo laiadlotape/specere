@@ -7,6 +7,7 @@ use specere_manifest::{record_to_unit_entry, sha256_file, Manifest};
 
 pub mod deploy;
 pub mod filter_state;
+pub mod orphan;
 pub mod speckit;
 
 pub const SPECERE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -293,6 +294,24 @@ pub fn verify(ctx: &Ctx) -> anyhow::Result<()> {
         println!("{drift} drift entries.");
     }
     Ok(())
+}
+
+/// Sweep orphan `.specify/` state (issue #16). Non-destructive if no orphan
+/// is detected. Returns the number of orphan artifact groups cleaned.
+pub fn clean_orphans(ctx: &Ctx) -> anyhow::Result<usize> {
+    match orphan::detect(ctx.repo()) {
+        Some(state) => {
+            let n = 1 + state.orphan_runs.len();
+            orphan::clean(ctx.repo(), &state)?;
+            tracing::info!(
+                "cleaned orphan feature dir at `{}` + {} workflow-run artifact(s)",
+                state.feature_dir.display(),
+                state.orphan_runs.len()
+            );
+            Ok(n)
+        }
+        None => Ok(0),
+    }
 }
 
 pub fn doctor(ctx: &Ctx) -> anyhow::Result<()> {

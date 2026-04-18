@@ -55,6 +55,11 @@ pub enum Error {
     /// branch was not SpecERE-created.
     #[error("refusing to delete branch `{branch}`: not created by SpecERE (branch_was_created_by_specere=false)")]
     BranchNotOurs { branch: String },
+    /// Issue #16. Raised by `speckit::preflight` when an aborted
+    /// `specify workflow run` has left a ghost `.specify/feature.json`
+    /// + `specs/NNN-*/spec.md` (template-only) on disk.
+    #[error("orphan .specify state detected at `{feature_dir}` (feature.json points here, but spec.md is still the unfilled template). Run `specere doctor --clean-orphans` to sweep.", feature_dir = feature_dir.display())]
+    OrphanFeatureDir { feature_dir: std::path::PathBuf },
     #[error("other: {0}")]
     Other(#[from] anyhow::Error),
 }
@@ -68,6 +73,7 @@ impl Error {
             Self::DeletedOwnedFile { .. } => 4,
             Self::BranchDirty { .. } => 6,
             Self::BranchNotOurs { .. } => 7,
+            Self::OrphanFeatureDir { .. } => 8,
             _ => 1,
         }
     }

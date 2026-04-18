@@ -61,7 +61,12 @@ enum Command {
     /// Re-hash every manifest entry and report drift.
     Verify,
     /// Diagnose the target repo (installed units, tool prerequisites).
-    Doctor,
+    Doctor {
+        /// Sweep orphan `.specify/` state left by aborted
+        /// `specify workflow run` subprocesses (issue #16).
+        #[arg(long)]
+        clean_orphans: bool,
+    },
     /// Emit telemetry records from a hook invocation.
     Observe,
 }
@@ -100,7 +105,23 @@ fn main() -> Result<()> {
         } => specere_units::remove(&ctx, &unit, ctx.dry_run(), force, delete_branch),
         Command::Status => specere_units::status(&ctx),
         Command::Verify => specere_units::verify(&ctx),
-        Command::Doctor => specere_units::doctor(&ctx),
+        Command::Doctor { clean_orphans } => {
+            if clean_orphans {
+                match specere_units::clean_orphans(&ctx) {
+                    Ok(0) => {
+                        println!("No orphan .specify/ state detected.");
+                        Ok(())
+                    }
+                    Ok(n) => {
+                        println!("Cleaned {n} orphan artifact group(s).");
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            } else {
+                specere_units::doctor(&ctx)
+            }
+        }
         Command::Observe => specere_telemetry::observe(&ctx),
     };
 
