@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use specere_core::{AddUnit, Ctx, FileEntry, MarkerEntry, Owner, Plan, Record, Result};
+use specere_core::{AddUnit, Ctx, MarkerEntry, Plan, Record, Result};
 
 use super::{AgentBundle, Deploy, SkillBundle};
 
@@ -180,21 +180,12 @@ impl AddUnit for ClaudeCodeDeploy {
             sha256: specere_manifest::sha256_bytes(new_yml.as_bytes()),
         });
 
-        // 4. Record .gitignore in files so verify/drift works (owner=Specere on
-        //    the content we wrote — but the whole file is co-owned; SHA drift
-        //    checks the whole file hash which is fine for the remove round-trip).
-        record.files.push(FileEntry {
-            path: PathBuf::from(".gitignore"),
-            sha256_post: specere_manifest::sha256_bytes(new_ignore.as_bytes()),
-            owner: Owner::Specere,
-            role: "gitignore-fenced".into(),
-        });
-        record.files.push(FileEntry {
-            path: PathBuf::from(".specify/extensions.yml"),
-            sha256_post: specere_manifest::sha256_bytes(new_yml.as_bytes()),
-            owner: Owner::Specere,
-            role: "extensions-fenced".into(),
-        });
+        // 4. Whole-file FileEntry records intentionally omitted for .gitignore
+        //    and .specify/extensions.yml — both are multi-owner files (other
+        //    units add their own fenced blocks), so a whole-file SHA on our
+        //    record would drift and spuriously trip FR-P1-003's gate on the
+        //    next `specere init` idempotent pass. The MarkerEntry records
+        //    above are authoritative for our owned content.
 
         // 5. Issue #8: embed the session-durable rules block in CLAUDE.md via
         //    a second marker-fenced section, disjoint from the existing
