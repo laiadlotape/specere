@@ -1715,6 +1715,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "hex",
+ "opentelemetry-proto",
  "predicates",
  "reqwest",
  "serde_json",
@@ -1727,6 +1728,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "tonic",
  "tracing",
  "tracing-subscriber",
 ]
