@@ -4,6 +4,9 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (Phase 4)
+- **`specere-filter` crate scaffold + `PerSpecHMM` baseline** (issue #40 / pre-FR-P4-001..006). New workspace member `crates/specere-filter/` (dep: `ndarray = 0.16`) with the three-state simplex `Status::{Unk, Sat, Vio}`, a `TestSensor` trait for log-likelihood emissions, a prototype-ported `Motion` model (`t_good`, `t_bad`, `t_leak` + `assumed_good=0.7`), and an independent per-spec forward recursion. `predict()` advances touched specs via the mixture transition and untouched specs via identity-leak; `update_test()` runs Bayes in log space with a log-sum-exp stabiliser. 9 new tests total: 5 unit (motion row-stochasticity, predict simplex invariance, touched-vs-untouched asymmetry, construction prior) + 4 integration (uniform+pass matches closed-form, predict+pass matches hand-computed posterior, unknown-spec rejection, 100-event no-NaN smoke). Phase 4 execution plan at `docs/phase4-execution-plan.md`.
+
 ### Added (Phase 3)
 - **`specere serve` OTLP/gRPC receiver** (issue #34 / FR-P3-001 closure). Tonic-based gRPC receiver on `127.0.0.1:4317` (port configurable via `.specere/otel-config.yml → receivers.otlp.protocols.grpc.endpoint` or `--grpc-bind`). Implements `TraceServiceServer` + `LogsServiceServer` from `opentelemetry-proto` 0.31 (`gen-tonic` feature); each span / log record becomes one Event written to the shared SQLite connection. New public `serve_both` runs HTTP + gRPC concurrently over one `Arc<Mutex<rusqlite::Connection>>`, with SIGINT fan-out via `tokio::sync::watch`. CLI: `specere serve --grpc-bind 127.0.0.1:4317` parallels `--bind`. Dev-deps bump: `tonic = "0.14"`, `opentelemetry-proto = "0.31"`, `prost = "0.14"`, `tokio-stream = "0.1"`. 2 new integration tests in `crates/specere/tests/fr_p3_005_serve_grpc.rs` (end-to-end `ExportTraceServiceRequest` round-trip + graceful shutdown).
 
