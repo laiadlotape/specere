@@ -281,7 +281,10 @@ fn main() -> Result<()> {
             print_help_hint(specere_err);
             std::process::exit(specere_err.exit_code());
         }
-        eprintln!("specere: error: {e}");
+        // Print the full anyhow context chain so parse failures, file-system
+        // errors, etc. surface their inner cause (manual-test M-04 / M-19 —
+        // previously only the top-level `.context()` was shown).
+        eprintln!("specere: error: {e:#}");
         std::process::exit(1);
     }
     Ok(())
@@ -441,9 +444,15 @@ fn run_filter_run(
     let sensor = specere_filter::DefaultTestSensor;
     let mut processed = 0usize;
     let mut skipped = 0usize;
+    // Cursor advances to the **max** observed ts, not the last-processed one —
+    // JSONL appends can arrive out of order (backfills, post-hoc late events),
+    // and taking the last-iterated ts breaks FR-P4-001 on a subsequent re-run.
     let mut latest_ts: Option<String> = None;
     for e in new_events {
-        latest_ts = Some(e.ts.clone());
+        match &latest_ts {
+            Some(cur) if e.ts.as_str() <= cur.as_str() => {}
+            _ => latest_ts = Some(e.ts.clone()),
+        }
         let kind = e.attrs.get("event_kind").map(String::as_str);
         let spec_id = e.attrs.get("spec_id").map(String::as_str);
         match (kind, spec_id) {

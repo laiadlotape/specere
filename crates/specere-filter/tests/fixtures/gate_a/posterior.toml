@@ -1,0 +1,1204 @@
+# Gate-A fixture — exported from ReSearch/prototype/mini_specs/ via
+# scripts/export_gate_a_posterior.py. Do not hand-edit.
+
+seed = 0
+steps = 120
+filter = "PerSpecHMM"
+specs = ["auth_login", "auth_logout", "auth_session", "billing_charge", "billing_refund", "user_create", "user_update", "api_health"]
+
+[supports]
+"auth_login" = ["src/auth/login.py", "src/common/utils.py"]
+"auth_logout" = ["src/auth/logout.py", "src/common/utils.py"]
+"auth_session" = ["src/auth/session.py", "src/common/errors.py", "src/db/conn.py"]
+"billing_charge" = ["src/billing/charge.py", "src/db/models.py"]
+"billing_refund" = ["src/billing/refund.py", "src/db/models.py"]
+"user_create" = ["src/user/create.py", "src/db/models.py"]
+"user_update" = ["src/user/update.py", "src/db/models.py"]
+"api_health" = ["src/api/health.py"]
+
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py", "src/auth/logout.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/logout.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/logout.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/user/update.py", "src/user/create.py"]
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/user/update.py", "src/user/create.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py", "src/billing/refund.py"]
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "write"
+files = ["src/user/update.py", "src/user/create.py"]
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/user/update.py"]
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "write"
+files = ["src/user/update.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py", "src/billing/refund.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/logout.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/logout.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/billing/refund.py"]
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/user/update.py", "src/user/create.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py", "src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py", "src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/user/update.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/db/models.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py"]
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/user/create.py"]
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "write"
+files = ["src/db/models.py", "src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py", "src/auth/logout.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/logout.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/billing/refund.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/logout.py"]
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py", "src/billing/refund.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py", "src/auth/logout.py"]
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/user/update.py", "src/user/create.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py"]
+[[trace]]
+kind = "write"
+files = ["src/user/update.py", "src/user/create.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py", "src/auth/logout.py"]
+[[trace]]
+kind = "write"
+files = ["src/user/create.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py", "src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/models.py", "src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py", "src/common/errors.py"]
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/user/update.py"]
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/db/models.py", "src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py", "src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "write"
+files = ["src/user/update.py"]
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/db/models.py", "src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py", "src/billing/refund.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "fail"
+[[trace]]
+kind = "write"
+files = ["src/billing/charge.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/db/conn.py", "src/db/models.py"]
+[[trace]]
+kind = "write"
+files = ["src/db/models.py"]
+[[trace]]
+kind = "test"
+spec_id = "billing_charge"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "billing_refund"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_create"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "user_update"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py", "src/auth/logout.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/session.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/auth/login.py", "src/auth/logout.py"]
+[[trace]]
+kind = "write"
+files = ["src/common/utils.py", "src/common/errors.py"]
+[[trace]]
+kind = "test"
+spec_id = "auth_login"
+outcome = "fail"
+[[trace]]
+kind = "test"
+spec_id = "auth_logout"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "test"
+spec_id = "auth_session"
+outcome = "pass"
+[[trace]]
+kind = "write"
+files = ["src/api/health.py"]
+[[trace]]
+kind = "test"
+spec_id = "api_health"
+outcome = "fail"
+
+[expected]
+"auth_login" = { p_unk = 0.062334045972, p_sat = 0.170398345478, p_vio = 0.767267608550, gt = 2 }
+"auth_logout" = { p_unk = 0.046954689046, p_sat = 0.861237021086, p_vio = 0.091808289868, gt = 1 }
+"auth_session" = { p_unk = 0.034221323009, p_sat = 0.912066859053, p_vio = 0.053711817938, gt = 1 }
+"billing_charge" = { p_unk = 0.103876346125, p_sat = 0.227727706447, p_vio = 0.668395947428, gt = 1 }
+"billing_refund" = { p_unk = 0.103973069206, p_sat = 0.226322038985, p_vio = 0.669704891809, gt = 0 }
+"user_create" = { p_unk = 0.104094282714, p_sat = 0.224506252660, p_vio = 0.671399464626, gt = 1 }
+"user_update" = { p_unk = 0.094741896551, p_sat = 0.673562136296, p_vio = 0.231695967154, gt = 1 }
+"api_health" = { p_unk = 0.053013442125, p_sat = 0.120570739678, p_vio = 0.826415818197, gt = 2 }

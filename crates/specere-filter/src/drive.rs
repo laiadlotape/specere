@@ -21,18 +21,45 @@ use ndarray::{array, Array1};
 
 use crate::state::TestSensor;
 
-/// Prototype-default emission model. Treat the `pass` row as a peaked SAT
-/// observation and `fail` as a peaked VIO one. Calibrated to match the
-/// `prototype/mini_specs/sensors.py` TestSensor.strong-signal case.
+/// Prototype-default emission model — ported **verbatim** from
+/// `ReSearch/prototype/mini_specs/sensors.py::TestSensor`:
+///
+/// - `alpha_sat = 0.92` → P(pass | SAT) = 0.92
+/// - `alpha_vio = 0.90` → P(fail | VIO) = 0.90
+/// - `alpha_unk = 0.55` → P(pass | UNK) = 0.55
+///
+/// Likelihood table (rows=status, cols=outcome):
+///
+/// ```text
+///           pass          fail
+/// UNK       0.55          0.45
+/// SAT       0.92          0.08
+/// VIO       0.10          0.90
+/// ```
+///
+/// Changing these constants invalidates the Gate-A parity fixture; regenerate
+/// via `scripts/export_gate_a_posterior.py` if you do.
 pub struct DefaultTestSensor;
+
+pub const ALPHA_SAT: f64 = 0.92;
+pub const ALPHA_VIO: f64 = 0.90;
+pub const ALPHA_UNK: f64 = 0.55;
 
 impl TestSensor for DefaultTestSensor {
     fn log_likelihood(&self, _spec_id: &str, outcome: &str) -> Array1<f64> {
+        // Clip to a 1e-6 floor before log (matches the prototype's `eps` so
+        // future sensor variations with zero probabilities stay well-defined).
+        const EPS: f64 = 1e-6;
+        let clip = |x: f64| x.max(EPS).ln();
         match outcome {
-            "pass" => array![0.20_f64.ln(), 0.70_f64.ln(), 0.10_f64.ln()],
-            "fail" => array![0.30_f64.ln(), 0.05_f64.ln(), 0.65_f64.ln()],
-            // Unknown outcomes: return a flat (uninformative) row so the
-            // posterior doesn't drift on bad data.
+            "pass" => array![clip(ALPHA_UNK), clip(ALPHA_SAT), clip(1.0 - ALPHA_VIO)],
+            "fail" => array![
+                clip(1.0 - ALPHA_UNK),
+                clip(1.0 - ALPHA_SAT),
+                clip(ALPHA_VIO)
+            ],
+            // Unknown outcomes: flat (uninformative) row so the posterior
+            // doesn't drift on bad data.
             _ => {
                 let u = (1.0_f64 / 3.0).ln();
                 array![u, u, u]

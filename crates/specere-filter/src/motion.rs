@@ -23,20 +23,29 @@ pub struct Motion {
 }
 
 impl Motion {
-    /// Prototype defaults. Rows are current-status, columns next-status.
-    /// Order is [UNK, SAT, VIO] — matches [`crate::Status::index`].
+    /// Prototype defaults — values ported **verbatim** from
+    /// `ReSearch/prototype/mini_specs/world.py::build_demo_world`. Rows are
+    /// current-status; columns are next-status. Order is [UNK, SAT, VIO] —
+    /// matches [`crate::Status::index`]. These rows are already row-stochastic
+    /// after the prototype's implicit `_normalise_rows` (they sum to 1 as
+    /// written, but we defend in tests just in case).
+    ///
+    /// Changing these numbers invalidates the Gate-A parity fixture; regenerate
+    /// `crates/specere-filter/tests/fixtures/gate_a/posterior.toml` via
+    /// `scripts/export_gate_a_posterior.py` if you do.
     pub fn prototype_defaults() -> Self {
-        // Good write: strong pull toward SAT; small chance of a latent VIO.
-        let t_good = array![[0.20, 0.75, 0.05], [0.05, 0.93, 0.02], [0.10, 0.70, 0.20],];
-        // Bad write: pull toward VIO; UNK tends to stay or drift to VIO.
-        let t_bad = array![[0.25, 0.15, 0.60], [0.05, 0.40, 0.55], [0.05, 0.05, 0.90],];
-        // Identity-leak: nearly identity, a 1% drift toward UNK on Sat/Vio
-        // so old beliefs age toward uncertainty.
-        let t_leak = array![[0.98, 0.01, 0.01], [0.01, 0.98, 0.01], [0.01, 0.01, 0.98],];
+        // GOOD write: pulls UNK/VIO toward SAT; SAT stays SAT high-prob.
+        let t_good = array![[0.10, 0.80, 0.10], [0.02, 0.92, 0.06], [0.05, 0.75, 0.20],];
+        // BAD write: pushes toward VIO.
+        let t_bad = array![[0.10, 0.10, 0.80], [0.05, 0.30, 0.65], [0.02, 0.08, 0.90],];
+        // Identity-leak for indirect coupling: mostly identity, slight drift
+        // toward VIO when already VIO.
+        let t_leak = array![[0.90, 0.05, 0.05], [0.02, 0.93, 0.05], [0.02, 0.03, 0.95],];
         Self {
             t_good,
             t_bad,
             t_leak,
+            // Prototype's filters use assumed_good_rate=0.7 as the default.
             assumed_good: 0.7,
         }
     }

@@ -191,6 +191,47 @@ fn filter_status_on_empty_repo_prints_hint() {
 }
 
 #[test]
+fn filter_run_cursor_advances_to_max_not_last_iteration_ts() {
+    // Regression for the manual-test M-21 finding: when JSONL events arrive
+    // out-of-order (e.g. a backfilled late-dated event appended after newer
+    // events), the cursor must advance to the max observed ts — not the
+    // last-iterated one. Otherwise a subsequent re-run with no new events
+    // re-processes events above the mistaken cursor and violates FR-P4-001.
+    let repo = TempRepo::new();
+    seed_sensor_map(&repo);
+    let events_path = repo.abs(".specere/events.jsonl");
+    std::fs::create_dir_all(events_path.parent().unwrap()).unwrap();
+    std::fs::write(
+        &events_path,
+        concat!(
+            r#"{"ts":"2026-04-18T12:00:00.100Z","source":"x","signal":"traces","attrs":{"event_kind":"test_outcome","spec_id":"FR-001","outcome":"pass"}}"#, "\n",
+            r#"{"ts":"2026-04-18T12:00:00.200Z","source":"x","signal":"traces","attrs":{"event_kind":"test_outcome","spec_id":"FR-001","outcome":"fail"}}"#, "\n",
+            // Out-of-order: this ts is the MINIMUM but appears last in the file.
+            r#"{"ts":"2026-04-18T12:00:00.090Z","source":"x","signal":"traces","attrs":{"event_kind":"test_outcome","spec_id":"FR-001","outcome":"pass"}}"#, "\n",
+        ),
+    )
+    .unwrap();
+
+    repo.run_specere(&["filter", "run"]).assert().success();
+    let first = std::fs::read(repo.abs(".specere/posterior.toml")).unwrap();
+
+    // Second run with the same events must be a true no-op.
+    repo.run_specere(&["filter", "run"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("no new events"));
+    let second = std::fs::read(repo.abs(".specere/posterior.toml")).unwrap();
+    assert_eq!(
+        first, second,
+        "FR-P4-001 breach: out-of-order events caused cursor to retreat, re-processing on second run"
+    );
+
+    // The cursor in the persisted posterior must equal the MAX event ts.
+    let p: specere_filter::Posterior = toml::from_str(&String::from_utf8(first).unwrap()).unwrap();
+    assert_eq!(p.cursor.as_deref(), Some("2026-04-18T12:00:00.200Z"));
+}
+
+#[test]
 fn filter_run_is_deterministic_across_invocations() {
     // FR-P4-004: same inputs + same seed ⇒ byte-identical posterior. We
     // run twice into two repos and compare. The `last_updated` field is
