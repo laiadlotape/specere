@@ -715,6 +715,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2",
+ "specere",
  "specere-core",
  "specere-manifest",
  "specere-markers",
