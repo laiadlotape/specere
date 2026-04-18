@@ -4,6 +4,13 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (post-Phase-1)
+- `docs/upcoming.md` — lightweight priority queue of the next specs (release-infra, Phase 2 native units, Phase 3 observe pipeline) with carry-over items from `.specere/decisions.log`.
+- `docs-sync` CI job in `.github/workflows/ci.yml`. Blocks PRs where `crates/**/*.rs` changes without any `README.md` / `CHANGELOG.md` / `CONTRIBUTING.md` / `docs/**/*.md` / `specs/**/*.md` touch. Escape hatch: include `[skip-docs]` in the PR title or body.
+
+### Changed
+- `README.md` Status table corrected: Phase 0 marked ✅ Shipped, Phase 1 marked ✅ Merged (PR #2, 9 FRs, 37/37 CI tests green). Reflects `main @ ae7b4c4` state.
+
 ### Added
 - Initial Rust workspace skeleton: `specere`, `specere-core`, `specere-units`, `specere-manifest`, `specere-markers`, `specere-telemetry`.
 - CLI surface stubs: `add`, `remove`, `status`, `verify`, `doctor`, `observe`, `version`.

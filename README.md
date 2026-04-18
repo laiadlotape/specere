@@ -32,20 +32,20 @@ This uninstall-first design is SpecERE's core UX differentiator versus SpecKit, 
 
 ## Status
 
-**Pre-0.1.0.** Under active development per the [v1.0 plan](docs/specere_v1.md). Not yet on crates.io.
+**Pre-0.1.0 release** — `0.2.0-dev` on `main`. Phase 1 merged; v0.2.0 tag not yet cut (release infrastructure is the next spec). Not yet on crates.io.
 
 | Phase | What ships | Status |
 |---|---|---|
-| Phase 0 — doc rectification       | README / CONTRIBUTING / CHANGELOG aligned to pivot           | 🚧 In progress |
-| Phase 1 — bugfix release `v0.2.0` | Drop `--no-git`, SHA-diff gate, first `after_implement` hook | ⏳ Next |
-| Phase 2 — native units            | All 5 MVP units implemented end-to-end                       | ⏳ Planned |
+| Phase 0 — doc rectification       | README / CONTRIBUTING / CHANGELOG aligned to pivot           | ✅ Shipped (2026-04-18) |
+| Phase 1 — bugfix release `v0.2.0` | Drop `--no-git`, SHA-diff gate, first `after_implement` hook, marker-fenced `.gitignore`, bit-identical remove, parse-safety | ✅ Merged (PR #2, 2026-04-18) — 9 FRs, 37/37 tests green on Linux/macOS/Windows; v0.2.0 tag pending release-infra |
+| Phase 2 — native units            | All 5 MVP units implemented end-to-end                       | ⏳ Next (see [`docs/upcoming.md`](docs/upcoming.md)) |
 | Phase 3 — observe pipeline        | Embedded OTLP receiver + `specere-observe` workflow          | ⏳ Planned |
 | Phase 4 — filter engine           | Rust port of the ReSearch prototype's three Bayesian filters | ⏳ Planned |
 | Phase 5 — motion-model calibration| `specere calibrate from-git`                                 | ⏳ Planned |
 | Phase 6 — cross-session persistence | Posterior survives across sessions                         | ⏳ Planned |
 | Phase 7 — v1.0.0 release          | Final tear-down-and-rebuild dogfood on ReSearch              | ⏳ Planned |
 
-See [CHANGELOG.md](./CHANGELOG.md) for release notes and [`docs/specere_v1.md`](docs/specere_v1.md) for the 36-FR / 7-SC master plan.
+See [`CHANGELOG.md`](./CHANGELOG.md) for release notes, [`docs/specere_v1.md`](docs/specere_v1.md) for the 36-FR / 7-SC master plan, and [`docs/upcoming.md`](docs/upcoming.md) for the queued-next specs.
 
 ## Design documents
 

@@ -48,3 +48,41 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-targets
       - run: cargo test --workspace --doc
+
+  docs-sync:
+    # Block PRs where Rust source under crates/ changes but no documentation
+    # file is touched. Catches implementation drift against README / CHANGELOG
+    # / docs/. Escape hatch: include `[skip-docs]` in the PR title or body.
+    # Runs only on pull_request (not push), because main has no upstream to
+    # diff against.
+    name: docs-sync
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for doc updates alongside code changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          if [[ "$PR_TITLE$PR_BODY" == *"[skip-docs]"* ]]; then
+            echo "::notice::[skip-docs] escape hatch present in PR title/body — bypassing docs-sync check"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          echo "Changed files:"
+          echo "$changed"
+          code_changed="$(echo "$changed" | grep -E '^crates/.+\.rs$' || true)"
+          docs_changed="$(echo "$changed" | grep -E '^(README\.md|CHANGELOG\.md|CONTRIBUTING\.md|docs/.+\.md|specs/.+\.md)$' || true)"
+          if [[ -n "$code_changed" && -z "$docs_changed" ]]; then
+            echo "::error::Rust source in crates/ changed but no documentation file was updated."
+            echo "Touch one of: README.md, CHANGELOG.md, CONTRIBUTING.md, docs/**/*.md, or specs/**/*.md."
+            echo "If the change genuinely needs no documentation (refactor, rename, CI fix), add '[skip-docs]' to the PR title or body."
+            exit 1
+          fi
+          echo "::notice::docs-sync OK"
