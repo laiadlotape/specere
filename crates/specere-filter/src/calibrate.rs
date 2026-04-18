@@ -137,10 +137,25 @@ fn run_git_log_names(repo: &Path, max_commits: Option<usize>) -> Result<String> 
         .output()
         .with_context(|| format!("spawn `git log` at {}", repo.display()))?;
     if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        // Friendlier messages for the two common setup errors (audit C-02 /
+        // C-11). Fall through to the raw git output for everything else.
+        if stderr.contains("does not have any commits") {
+            return Err(anyhow!(
+                "calibrate: {} has no commits yet — make at least one commit before running `specere calibrate`",
+                repo.display()
+            ));
+        }
+        if stderr.contains("not a git repository") {
+            return Err(anyhow!(
+                "calibrate: {} is not a git repository — run `git init` first",
+                repo.display()
+            ));
+        }
         return Err(anyhow!(
             "`git log` failed at {}: {}",
             repo.display(),
-            String::from_utf8_lossy(&out.stderr)
+            stderr
         ));
     }
     String::from_utf8(out.stdout).context("git log output was not UTF-8")
@@ -169,11 +184,28 @@ fn compute_report(
     commits: &[Vec<String>],
     opts: &CalibrateOpts,
 ) -> Result<CalibrationReport> {
-    // Pre-index each spec's support paths into a set of "path prefixes" —
-    // a commit file matches a spec if any commit file equals a support
-    // entry OR starts-with it (so directory-prefix supports work).
+    // Match a commit file against a spec support entry. A file `f` is under
+    // a support entry `sup` iff it's an exact file-path match, or it lives
+    // inside the directory that `sup` names. We pre-normalise each support
+    // entry into a `(sup_no_trailing_slash, sup_with_trailing_slash)` pair
+    // and test against both — `f == sup` for exact matches, `f.starts_with(sup_slash)`
+    // for directory-prefix matches. This prevents the false-positive where
+    // support `src/widget` matches `src/widgetry/x.rs` (audit finding C-13
+    // / C-01: `starts_with` without a separator bleeds across sibling paths).
     let spec_ids: Vec<&str> = specs.iter().map(|s| s.id.as_str()).collect();
-    let supports: Vec<&[String]> = specs.iter().map(|s| s.support.as_slice()).collect();
+    let supports_normalised: Vec<Vec<(String, String)>> = specs
+        .iter()
+        .map(|s| {
+            s.support
+                .iter()
+                .map(|sup| {
+                    let bare = sup.trim_end_matches('/').to_string();
+                    let dir = format!("{bare}/");
+                    (bare, dir)
+                })
+                .collect()
+        })
+        .collect();
 
     let mut spec_activity: BTreeMap<String, usize> = BTreeMap::new();
     // Co-occurrence count keyed by the sorted (src, dst) pair.
@@ -185,9 +217,11 @@ fn compute_report(
             .iter()
             .enumerate()
             .filter(|(i, _)| {
-                supports[*i]
-                    .iter()
-                    .any(|sup| files.iter().any(|f| f == sup || f.starts_with(sup)))
+                supports_normalised[*i].iter().any(|(bare, dir)| {
+                    files
+                        .iter()
+                        .any(|f| f == bare || f.starts_with(dir.as_str()))
+                })
             })
             .map(|(_, sid)| *sid)
             .collect();
@@ -403,6 +437,69 @@ mod tests {
         ];
         assert!(would_create_cycle(&existing, "c", "a"));
         assert!(!would_create_cycle(&existing, "a", "c"));
+    }
+
+    #[test]
+    fn sibling_directories_do_not_false_match() {
+        // Audit finding C-01 / C-13: support `src/auth` must NOT match a
+        // commit that touches only `src/auth_helpers/*`. Pre-fix the
+        // `starts_with` call bled across sibling path prefixes.
+        let specs = [
+            spec("auth", &["src/auth"]),
+            spec("helpers", &["src/auth_helpers"]),
+        ];
+        let cs = vec![
+            vec!["src/auth_helpers/h.rs".to_string()],
+            vec!["src/auth_helpers/h.rs".to_string()],
+            vec!["src/auth_helpers/h.rs".to_string()],
+            vec![
+                "src/auth/a.rs".to_string(),
+                "src/auth_helpers/h.rs".to_string(),
+            ],
+        ];
+        let report = compute_report(&specs, &cs, &CalibrateOpts::default()).unwrap();
+        // `auth` must only be counted in the 4th commit.
+        assert_eq!(report.spec_activity.get("auth").copied(), Some(1));
+        assert_eq!(report.spec_activity.get("helpers").copied(), Some(4));
+        // No coupling edge meets the default min_commits=3 threshold for
+        // the auth<->helpers pair (only 1 co-commit).
+        assert!(
+            report.edges.is_empty(),
+            "expected no edges; found {:?}",
+            report.edges
+        );
+    }
+
+    #[test]
+    fn trailing_slash_support_is_equivalent_to_bare() {
+        // Audit C-13 tail: `src/widget/` and `src/widget` should match the
+        // same files so users don't have to guess the convention.
+        let specs_with_slash = [spec("w", &["src/widget/"])];
+        let specs_bare = [spec("w", &["src/widget"])];
+        let cs = vec![
+            vec!["src/widget/a.rs".to_string()],
+            vec!["src/widget/sub/b.rs".to_string()],
+            vec!["src/widgetry/x.rs".to_string()], // must NOT match either
+        ];
+        let r1 = compute_report(&specs_with_slash, &cs, &CalibrateOpts::default()).unwrap();
+        let r2 = compute_report(&specs_bare, &cs, &CalibrateOpts::default()).unwrap();
+        assert_eq!(r1.spec_activity, r2.spec_activity);
+        assert_eq!(r1.spec_activity.get("w").copied(), Some(2));
+    }
+
+    #[test]
+    fn exact_file_match_works() {
+        // Audit C-14: a support entry that names a file directly (not a
+        // directory) should match that file and only that file. Sibling
+        // filenames that share a prefix must not be matched.
+        let specs = [spec("main", &["src/main.rs"])];
+        let cs = vec![
+            vec!["src/main.rs".to_string()],
+            vec!["src/mainframe.rs".to_string()], // no match
+            vec!["src/main.rs.bak".to_string()],  // no match
+        ];
+        let report = compute_report(&specs, &cs, &CalibrateOpts::default()).unwrap();
+        assert_eq!(report.spec_activity.get("main").copied(), Some(1));
     }
 
     #[test]
