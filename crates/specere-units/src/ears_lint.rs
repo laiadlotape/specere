@@ -1,0 +1,207 @@
+//! `specere lint ears` runtime — reads `.specere/lint/ears.toml`, applies each
+//! rule to the active feature's `spec.md` Functional Requirements section, and
+//! prints findings. Exits 0 regardless of findings (advisory per FR-P2-003).
+//!
+//! Issue #25.
+
+use std::path::{Path, PathBuf};
+
+use regex::Regex;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct RulesFile {
+    #[serde(default, rename = "rules")]
+    rules: Vec<RawRule>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawRule {
+    id: String,
+    severity: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    description: String,
+    #[allow(dead_code)]
+    scope: String,
+    pattern: String,
+    #[serde(default)]
+    bad_match: bool,
+    #[serde(default)]
+    condition_only: bool,
+}
+
+/// A single lint finding.
+#[derive(Debug)]
+pub struct Finding {
+    pub rule_id: String,
+    pub severity: String,
+    pub excerpt: String,
+}
+
+/// Run the lint given a repo path. Never errors on missing state — returns
+/// empty findings + a skip reason for the caller to print. Errors only on
+/// malformed rules.toml (which is a real bug worth surfacing).
+pub fn run(repo: &Path) -> anyhow::Result<LintOutcome> {
+    let feature_json = repo.join(".specify").join("feature.json");
+    let rules_path = repo.join(".specere/lint/ears.toml");
+
+    if !rules_path.is_file() {
+        return Ok(LintOutcome::Skipped(format!(
+            "rules file missing at {} — run `specere add ears-linter`",
+            rules_path.display()
+        )));
+    }
+    if !feature_json.is_file() {
+        return Ok(LintOutcome::Skipped(
+            "no active feature — skipping ears lint (`.specify/feature.json` absent)".into(),
+        ));
+    }
+
+    let feat_raw = std::fs::read_to_string(&feature_json)?;
+    let feature_dir_rel = parse_feature_directory(&feat_raw).ok_or_else(|| {
+        anyhow::anyhow!(
+            "could not parse feature_directory from {}",
+            feature_json.display()
+        )
+    })?;
+    let spec_md = repo.join(&feature_dir_rel).join("spec.md");
+    if !spec_md.is_file() {
+        return Ok(LintOutcome::Skipped(format!(
+            "spec.md missing at {}",
+            spec_md.display()
+        )));
+    }
+
+    let rules_raw = std::fs::read_to_string(&rules_path)?;
+    let rules: RulesFile = toml::from_str(&rules_raw)
+        .map_err(|e| anyhow::anyhow!("parsing {}: {e}", rules_path.display()))?;
+    let compiled: Vec<CompiledRule> = rules
+        .rules
+        .into_iter()
+        .map(CompiledRule::compile)
+        .collect::<Result<_, _>>()?;
+
+    let spec_body = std::fs::read_to_string(&spec_md)?;
+    let bullets = extract_fr_bullets(&spec_body);
+
+    let mut findings = Vec::new();
+    for bullet in &bullets {
+        for rule in &compiled {
+            let pattern_matches = rule.pattern.is_match(bullet);
+            let rule_fires = if rule.bad_match {
+                // bad_match=true: warn when pattern DOES match
+                pattern_matches
+            } else if rule.condition_only {
+                // condition_only=true + bad_match=false: rule was designed to
+                // catch condition-casing drift; removed in #25 because as
+                // specified it could never fire. Kept here for backward compat
+                // if a future rules.toml reintroduces it with a real design —
+                // for now: no-op.
+                false
+            } else {
+                // Default: warn when pattern does NOT match.
+                !pattern_matches
+            };
+            if rule_fires {
+                let excerpt = bullet.lines().next().unwrap_or(bullet).trim().to_string();
+                let excerpt = truncate(&excerpt, 120);
+                findings.push(Finding {
+                    rule_id: rule.id.clone(),
+                    severity: rule.severity.clone(),
+                    excerpt,
+                });
+            }
+        }
+    }
+
+    Ok(LintOutcome::Ran {
+        feature_dir: feature_dir_rel.into(),
+        bullet_count: bullets.len(),
+        findings,
+    })
+}
+
+pub enum LintOutcome {
+    /// Rules + feature present; ran successfully. May have zero findings.
+    Ran {
+        feature_dir: PathBuf,
+        bullet_count: usize,
+        findings: Vec<Finding>,
+    },
+    /// Ran as no-op with a human-readable reason.
+    Skipped(String),
+}
+
+struct CompiledRule {
+    id: String,
+    severity: String,
+    pattern: Regex,
+    bad_match: bool,
+    condition_only: bool,
+}
+
+impl CompiledRule {
+    fn compile(raw: RawRule) -> anyhow::Result<Self> {
+        let pattern = Regex::new(&raw.pattern)
+            .map_err(|e| anyhow::anyhow!("invalid regex for rule `{}`: {e}", raw.id))?;
+        Ok(Self {
+            id: raw.id,
+            severity: raw.severity,
+            pattern,
+            bad_match: raw.bad_match,
+            condition_only: raw.condition_only,
+        })
+    }
+}
+
+/// Pull the Functional Requirements section's bullet lines out of spec.md.
+/// Heuristic: everything between `### Functional Requirements` and the next
+/// `### ` heading (or EOF), keeping only lines that start with `-`.
+fn extract_fr_bullets(spec: &str) -> Vec<String> {
+    let mut in_fr = false;
+    let mut bullets = Vec::new();
+    for line in spec.lines() {
+        let trimmed = line.trim_start();
+        if let Some(heading) = line.strip_prefix("### ") {
+            if heading
+                .trim()
+                .eq_ignore_ascii_case("Functional Requirements")
+            {
+                in_fr = true;
+                continue;
+            }
+            // Different subsection — leave FR.
+            if in_fr {
+                break;
+            }
+        }
+        if line.starts_with("## ") && in_fr {
+            break;
+        }
+        if in_fr && trimmed.starts_with('-') {
+            bullets.push(line.to_string());
+        }
+    }
+    bullets
+}
+
+fn parse_feature_directory(raw: &str) -> Option<String> {
+    let key = "\"feature_directory\"";
+    let start = raw.find(key)? + key.len();
+    let rest = &raw[start..];
+    let colon = rest.find(':')?;
+    let after_colon = &rest[colon + 1..];
+    let quote1 = after_colon.find('"')?;
+    let after_q1 = &after_colon[quote1 + 1..];
+    let quote2 = after_q1.find('"')?;
+    Some(after_q1[..quote2].to_string())
+}
+
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}…", &s[..max])
+    }
+}

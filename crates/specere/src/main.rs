@@ -65,6 +65,11 @@ enum Command {
     /// (speckit → filter-state → claude-code-deploy → otel-collector → ears-linter).
     /// FR-P2-005 / issue #15.
     Init,
+    /// Run one of the shipped linters. Issue #25.
+    Lint {
+        #[command(subcommand)]
+        kind: LintKind,
+    },
     /// List installed units and flag drift.
     Status,
     /// Re-hash every manifest entry and report drift.
@@ -78,6 +83,13 @@ enum Command {
     },
     /// Emit telemetry records from a hook invocation.
     Observe,
+}
+
+#[derive(Subcommand)]
+enum LintKind {
+    /// EARS-style lint over the active feature's spec.md (FR-P2-003).
+    /// Advisory only — always exits 0.
+    Ears,
 }
 
 fn main() -> Result<()> {
@@ -115,6 +127,9 @@ fn main() -> Result<()> {
             delete_branch,
         } => specere_units::remove(&ctx, &unit, ctx.dry_run(), force, delete_branch),
         Command::Init => specere_units::init(&ctx),
+        Command::Lint { kind } => match kind {
+            LintKind::Ears => specere_units::run_ears_lint(&ctx),
+        },
         Command::Status => specere_units::status(&ctx),
         Command::Verify => specere_units::verify(&ctx),
         Command::Doctor { clean_orphans } => {
