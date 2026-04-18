@@ -86,6 +86,16 @@ enum Command {
         #[command(subcommand)]
         kind: ObserveKind,
     },
+    /// Start the embedded OTLP/HTTP receiver. Blocks until SIGINT.
+    /// Issue #30 / FR-P3-001 partial + FR-P3-005.
+    Serve {
+        /// Path to the otel-config.yml (default: `.specere/otel-config.yml`).
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Override the HTTP bind address (host:port). Wins over the YAML.
+        #[arg(long)]
+        bind: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -209,6 +219,7 @@ fn main() -> Result<()> {
                 format,
             } => run_observe_query(&ctx, since, signal, source, limit, &format),
         },
+        Command::Serve { config, bind } => run_serve(&ctx, config, bind),
     };
 
     if let Err(e) = result {
@@ -223,6 +234,29 @@ fn main() -> Result<()> {
         eprintln!("specere: error: {e}");
         std::process::exit(1);
     }
+    Ok(())
+}
+
+fn run_serve(ctx: &specere_core::Ctx, config: Option<PathBuf>, bind: Option<String>) -> Result<()> {
+    let config_path = config.unwrap_or_else(|| ctx.repo().join(".specere/otel-config.yml"));
+    let mut cfg = specere_telemetry::serve::load_config(&config_path);
+    if let Some(addr) = bind {
+        cfg.http_bind = addr.parse()?;
+    }
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(async move {
+        let repo = ctx.repo().to_path_buf();
+        specere_telemetry::serve_http(repo, cfg, async {
+            if let Err(e) = tokio::signal::ctrl_c().await {
+                tracing::warn!("failed to install SIGINT handler: {e}");
+            }
+        })
+        .await?;
+        Ok::<_, anyhow::Error>(())
+    })?;
     Ok(())
 }
 

@@ -38,6 +38,9 @@ assert_cmd = "2"
 predicates = "3"
 regex = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "net"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 specere-core = { path = "crates/specere-core", version = "0.2.0" }
 specere-units = { path = "crates/specere-units", version = "0.2.0" }
