@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-18
+
+Production-readiness release. First-run experience works end-to-end on a brand-new repo. Delivers Phase 5 partial (coupling-edge calibration from git log), closes issue #50 (advisory file-lock on `filter run`), ships `docs/filter.md`.
+
 ### Added (Phase 5 partial + v0.5.0 production polish)
 - **`specere calibrate from-git`** (Phase 5 partial). New subcommand that walks `git log`, tallies per-spec co-modification counts, and emits a ready-to-paste `[coupling]` TOML snippet for `.specere/sensor-map.toml`. Configurable via `--max-commits` (default 500) and `--min-commits` (default 3 — co-modifications below this are filtered as coincidences). Greedy DAG filter rejects proposed edges that would close a cycle. New crate module `specere-filter::calibrate` with 7 unit tests + 3 integration tests in `crates/specere/tests/fr_p5_calibrate_from_git.rs`. Dogfood on the specere repo surfaces the expected `cli ↔ units / telemetry / core` coupling. Motion-matrix fit (full FR-P5) deferred — needs a durable test-history source.
 - **Advisory file lock on `filter run`** (issue #50 closure). New workspace dep `fs2 = 0.4`. `run_filter_run` now acquires an exclusive lock on `.specere/filter.lock` before loading or writing the posterior; concurrent invocations queue instead of one losing the atomic-write race. Regression test `filter_run_serialises_concurrent_invocations`.
