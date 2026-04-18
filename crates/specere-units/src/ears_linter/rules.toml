@@ -21,13 +21,11 @@ description = "FRs SHOULD contain MUST or SHOULD (capitalised) to express the re
 scope = "functional-requirements"
 pattern = '\b(MUST|SHOULD)\b'
 
-[[rules]]
-id = "ears-condition-keyword"
-severity = "info"
-description = "Condition-bearing FRs SHOULD use EARS keywords (WHEN / WHILE / WHERE / IF) for condition framing"
-scope = "functional-requirements"
-pattern = '\b(WHEN|WHILE|WHERE|IF)\b'
-condition_only = true
+# NOTE: a prior `ears-condition-keyword` rule was removed in PR for issue #25.
+# It was dead code — pattern was the same as the `condition_only` gate, so it
+# could never fire. A proper condition-casing rule (catching lowercase "when"
+# where uppercase WHEN is expected) needs a separate `trigger_pattern` field
+# in the rule schema; deferred to a later issue with a real design.
 
 [[rules]]
 id = "ears-no-ambiguous-adj"

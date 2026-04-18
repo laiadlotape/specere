@@ -4,6 +4,12 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (post-Phase-2)
+- **`specere lint ears` CLI subcommand** (issue #25). Runs the rules from `.specere/lint/ears.toml` against the active feature's `spec.md` and prints findings as `[SEVERITY rule-id] <bullet-excerpt>`. Always exits 0 (advisory per FR-P2-003). Replaces the agent-only runtime path — the lint is now reproducible in CI via the new integration test `crates/specere/tests/issue_025_ears_lint_cli.rs` (4 scenarios: foo feature with 3 bad bullets, compliant spec, missing feature.json, missing rules). Adds `regex` crate to the workspace dep list.
+
+### Fixed (post-Phase-2)
+- **`ears-condition-keyword` rule removed** (issue #25). The rule's `condition_only=true` gate + default `bad_match=false` was self-contradictory — the gate's pattern was the same as the enforcement pattern, so the rule could never fire. Left an explanatory comment in `rules.toml` for future condition-casing rules that would need a separate `trigger_pattern` schema field. The lint runtime treats any remaining `condition_only=true + bad_match=false` rules as no-op for forward compatibility.
+
 ### Added (Phase 2)
 - **`specere init` meta-command** (FR-P2-005 / issue #15) — one idempotent pass installs all five day-one units in order: `speckit` → `filter-state` → `claude-code-deploy` → `otel-collector` → `ears-linter`. Fail-fast on the first unit error; partial installs are manifest-recorded so `specere remove <unit>` can clean up. 3 regression scenarios in `crates/specere/tests/fr_p2_005_init.rs`: fresh init, idempotent re-init, fail-fast on orphan state preserves no partial work.
 - **Multi-owner file fix**: `filter-state` and `claude-code-deploy` no longer record whole-file `FileEntry`s for `.gitignore` and `.specify/extensions.yml` — they co-own these files with other units via disjoint marker-fenced blocks, and whole-file SHA tracking caused false-positive SHA-diff failures on `specere init` idempotent re-runs. `MarkerEntry` records remain authoritative for each unit's owned content.

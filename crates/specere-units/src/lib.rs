@@ -6,6 +6,7 @@ use specere_core::{AddUnit, Ctx, Owner};
 use specere_manifest::{record_to_unit_entry, sha256_file, Manifest};
 
 pub mod deploy;
+pub mod ears_lint;
 pub mod ears_linter;
 pub mod filter_state;
 pub mod orphan;
@@ -292,6 +293,43 @@ pub fn verify(ctx: &Ctx) -> anyhow::Result<()> {
         println!("No drift.");
     } else {
         println!("{drift} drift entries.");
+    }
+    Ok(())
+}
+
+/// Run the EARS lint (issue #25) and print findings. Always exits 0 at the
+/// caller's discretion — advisory per FR-P2-003.
+pub fn run_ears_lint(ctx: &Ctx) -> anyhow::Result<()> {
+    match ears_lint::run(ctx.repo())? {
+        ears_lint::LintOutcome::Skipped(reason) => {
+            println!("specere lint ears: {reason}");
+        }
+        ears_lint::LintOutcome::Ran {
+            feature_dir,
+            bullet_count,
+            findings,
+        } => {
+            if findings.is_empty() {
+                println!(
+                    "specere lint ears: OK — {bullet_count} FR bullet(s) in {} scanned, no findings",
+                    feature_dir.display()
+                );
+            } else {
+                println!(
+                    "specere lint ears: {} finding(s) across {bullet_count} FR bullet(s) in {}:",
+                    findings.len(),
+                    feature_dir.display()
+                );
+                for f in &findings {
+                    println!(
+                        "  [{} {}] {}",
+                        f.severity.to_uppercase(),
+                        f.rule_id,
+                        f.excerpt
+                    );
+                }
+            }
+        }
     }
     Ok(())
 }
