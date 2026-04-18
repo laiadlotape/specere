@@ -46,36 +46,36 @@ fn uniform_prior_plus_pass_matches_bayes_closed_form() {
 #[test]
 fn predict_then_pass_matches_hand_computed() {
     // Step 1: predict on a touched file. Uniform prior (1/3, 1/3, 1/3) times
-    // t_mix = 0.7·t_good + 0.3·t_bad. Row-stochastic matrices → the
-    // row-sum-over-columns is (col-sum)/3 for each column.
+    // t_mix = 0.7·t_good + 0.3·t_bad (prototype-aligned matrices).
+    // Row-stochastic matrices → the row-sum-over-columns is (col-sum)/3.
     //
-    // t_mix column sums (computed by hand from prototype_defaults):
-    //   col 0 (UNK): 0.7·(0.20+0.05+0.10) + 0.3·(0.25+0.05+0.05)
-    //              = 0.7·0.35 + 0.3·0.35 = 0.35
-    //   col 1 (SAT): 0.7·(0.75+0.93+0.70) + 0.3·(0.15+0.40+0.05)
-    //              = 0.7·2.38 + 0.3·0.60 = 1.666 + 0.18 = 1.846
-    //   col 2 (VIO): 0.7·(0.05+0.02+0.20) + 0.3·(0.60+0.55+0.90)
-    //              = 0.7·0.27 + 0.3·2.05 = 0.189 + 0.615 = 0.804
-    // Divide each by 3 for the uniform-row contraction:
-    //   post-predict prior ≈ [0.11667, 0.61533, 0.26800]
+    // Prototype t_good col sums: [0.17, 2.47, 0.36]
+    // Prototype t_bad  col sums: [0.17, 0.48, 2.35]
+    // t_mix col sums = 0.7·t_good + 0.3·t_bad:
+    //   col 0 (UNK): 0.7·0.17 + 0.3·0.17 = 0.170
+    //   col 1 (SAT): 0.7·2.47 + 0.3·0.48 = 1.729 + 0.144 = 1.873
+    //   col 2 (VIO): 0.7·0.36 + 0.3·2.35 = 0.252 + 0.705 = 0.957
+    // Divide by 3 for the uniform-row contraction:
+    //   post-predict prior ≈ [0.05667, 0.62433, 0.31900]
     let mut f = PerSpecHMM::new(one_spec(), Motion::prototype_defaults());
     f.predict(&["src/foo.rs"]);
     let after_predict = f.marginal("FR-001").unwrap();
-    assert_abs_diff_eq!(after_predict[0], 0.35 / 3.0, epsilon = 1e-9);
-    assert_abs_diff_eq!(after_predict[1], 1.846 / 3.0, epsilon = 1e-9);
-    assert_abs_diff_eq!(after_predict[2], 0.804 / 3.0, epsilon = 1e-9);
+    assert_abs_diff_eq!(after_predict[0], 0.170 / 3.0, epsilon = 1e-9);
+    assert_abs_diff_eq!(after_predict[1], 1.873 / 3.0, epsilon = 1e-9);
+    assert_abs_diff_eq!(after_predict[2], 0.957 / 3.0, epsilon = 1e-9);
 
-    // Step 2: update on "pass" — log-domain Bayes with sensor [0.10, 0.80, 0.10].
-    // Un-normalised posterior:
-    //   [0.11667·0.10, 0.61533·0.80, 0.26800·0.10]
-    // = [0.011667,     0.492267,     0.026800]
-    // total = 0.530733 → posterior ≈ [0.02199, 0.92752, 0.05049]
+    // Step 2: update on "pass" — log-domain Bayes with DemoSensor's local
+    // pass row [0.10, 0.80, 0.10] (not DefaultTestSensor; this test isolates
+    // motion-matrix arithmetic from sensor calibration).
+    //   Un-norm: [0.05667·0.10, 0.62433·0.80, 0.31900·0.10]
+    //          = [0.005667,     0.499467,     0.031900]
+    //   total  = 0.537033 → posterior ≈ [0.01055, 0.93004, 0.05940]
     f.update_test("FR-001", "pass", &DemoSensor).unwrap();
     let post = f.marginal("FR-001").unwrap();
     let un_norm = [
-        (0.35 / 3.0) * 0.10,
-        (1.846 / 3.0) * 0.80,
-        (0.804 / 3.0) * 0.10,
+        (0.170 / 3.0) * 0.10,
+        (1.873 / 3.0) * 0.80,
+        (0.957 / 3.0) * 0.10,
     ];
     let total: f64 = un_norm.iter().sum();
     assert_abs_diff_eq!(post[0], un_norm[0] / total, epsilon = 1e-9);

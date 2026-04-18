@@ -281,7 +281,10 @@ fn main() -> Result<()> {
             print_help_hint(specere_err);
             std::process::exit(specere_err.exit_code());
         }
-        eprintln!("specere: error: {e}");
+        // Print the full anyhow context chain so parse failures, file-system
+        // errors, etc. surface their inner cause (manual-test M-04 / M-19 —
+        // previously only the top-level `.context()` was shown).
+        eprintln!("specere: error: {e:#}");
         std::process::exit(1);
     }
     Ok(())
@@ -441,9 +444,15 @@ fn run_filter_run(
     let sensor = specere_filter::DefaultTestSensor;
     let mut processed = 0usize;
     let mut skipped = 0usize;
+    // Cursor advances to the **max** observed ts, not the last-processed one —
+    // JSONL appends can arrive out of order (backfills, post-hoc late events),
+    // and taking the last-iterated ts breaks FR-P4-001 on a subsequent re-run.
     let mut latest_ts: Option<String> = None;
     for e in new_events {
-        latest_ts = Some(e.ts.clone());
+        match &latest_ts {
+            Some(cur) if e.ts.as_str() <= cur.as_str() => {}
+            _ => latest_ts = Some(e.ts.clone()),
+        }
         let kind = e.attrs.get("event_kind").map(String::as_str);
         let spec_id = e.attrs.get("spec_id").map(String::as_str);
         match (kind, spec_id) {
@@ -537,6 +546,17 @@ fn run_filter_status(
     }
     let p = specere_filter::Posterior::load_or_default(&posterior_path)?;
 
+    // Empty-posterior hint — the file exists (so the "no posterior yet"
+    // branch above didn't fire) but has zero entries. Surfaced by manual-
+    // test M-07-B.
+    if p.entries.is_empty() {
+        println!(
+            "posterior has no entries — no events processed yet. \
+             Add `[specs]` + seed events, then `specere filter run`."
+        );
+        return Ok(());
+    }
+
     let mut entries = p.entries.clone();
     sort_entries(&mut entries, sort)?;
 
@@ -544,7 +564,7 @@ fn run_filter_status(
         "json" => {
             println!("{}", serde_json::to_string_pretty(&entries)?);
         }
-        _ => {
+        "table" => {
             println!("spec_id      p_unk   p_sat   p_vio   entropy  last_updated");
             println!("-----------  ------  ------  ------  -------  --------------------");
             for e in &entries {
@@ -554,6 +574,7 @@ fn run_filter_status(
                 );
             }
         }
+        other => anyhow::bail!("unknown --format `{other}`; one of `table` (default) or `json`"),
     }
     Ok(())
 }
@@ -563,7 +584,13 @@ fn sort_entries(entries: &mut [specere_filter::Entry], sort: &str) -> Result<()>
     let (field, dir) = sort
         .split_once(',')
         .ok_or_else(|| anyhow::anyhow!("--sort expects `field,asc|desc` (got `{sort}`)"))?;
-    let ascending = matches!(dir, "asc");
+    // Validate direction explicitly — previously any non-"asc" string silently
+    // became `desc`. Surfaced by manual-test M-15-B.
+    let ascending = match dir {
+        "asc" => true,
+        "desc" => false,
+        other => anyhow::bail!("--sort direction must be `asc` or `desc` (got `{other}`)"),
+    };
     let cmp: fn(&specere_filter::Entry, &specere_filter::Entry) -> Ordering = match field {
         "entropy" => |a, b| a.entropy.partial_cmp(&b.entropy).unwrap_or(Ordering::Equal),
         "p_sat" => |a, b| a.p_sat.partial_cmp(&b.p_sat).unwrap_or(Ordering::Equal),
