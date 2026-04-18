@@ -1,3 +1,4 @@
 # SpecERE adjudication log — decisions made via `specere review drain`.
 # Format: RFC3339-timestamp \t surface \t decision \t rationale
 # Decisions: EXTEND | IGNORE | ALLOWLIST | ADJUDICATE
+2026-04-18T00:00:00Z	specify-workflow-run-claude-p-leak	EXTEND	file as speckit::preflight orphan detector; target v0.3.0 (Phase 2 native-units completion); workflow runner is upstream-owned (IGNORE per 10-rule #10), but orphan detection on our side is in-scope
