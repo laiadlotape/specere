@@ -20,6 +20,9 @@ time.workspace = true
 rusqlite.workspace = true
 axum.workspace = true
 tokio.workspace = true
+tonic.workspace = true
+opentelemetry-proto.workspace = true
+prost.workspace = true
 specere-core.workspace = true
 
 [dev-dependencies]
