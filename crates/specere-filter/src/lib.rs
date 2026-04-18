@@ -17,14 +17,20 @@
 
 pub mod bp;
 pub mod coupling;
+pub mod drive;
 pub mod hmm;
 pub mod motion;
+pub mod posterior;
 pub mod rbpf;
+pub mod specs;
 pub mod state;
 
 pub use bp::FactorGraphBP;
 pub use coupling::CouplingGraph;
+pub use drive::{parse_paths, DefaultTestSensor, DriveStats};
 pub use hmm::PerSpecHMM;
 pub use motion::Motion;
+pub use posterior::{Entry, Posterior};
 pub use rbpf::RBPF;
+pub use specs::load_specs;
 pub use state::{Belief, Status, TestSensor};

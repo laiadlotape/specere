@@ -25,6 +25,8 @@ specere-manifest.workspace = true
 specere-markers.workspace = true
 specere-units.workspace = true
 specere-telemetry.workspace = true
+specere-filter.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 # Integration tests in tests/fr_p1_*.rs drive the `specere` binary via
@@ -38,6 +40,7 @@ sha2.workspace = true
 toml.workspace = true
 serde_json.workspace = true
 specere-telemetry.workspace = true
+specere-filter.workspace = true
 reqwest.workspace = true
 tonic.workspace = true
 opentelemetry-proto.workspace = true

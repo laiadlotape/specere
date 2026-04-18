@@ -18,3 +18,4 @@ toml.workspace = true
 
 [dev-dependencies]
 approx = "0.5"
+tempfile.workspace = true
