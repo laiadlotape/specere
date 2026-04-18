@@ -61,6 +61,10 @@ enum Command {
         #[arg(long)]
         delete_branch: bool,
     },
+    /// Install the five day-one units in one idempotent pass
+    /// (speckit → filter-state → claude-code-deploy → otel-collector → ears-linter).
+    /// FR-P2-005 / issue #15.
+    Init,
     /// List installed units and flag drift.
     Status,
     /// Re-hash every manifest entry and report drift.
@@ -110,6 +114,7 @@ fn main() -> Result<()> {
             force,
             delete_branch,
         } => specere_units::remove(&ctx, &unit, ctx.dry_run(), force, delete_branch),
+        Command::Init => specere_units::init(&ctx),
         Command::Status => specere_units::status(&ctx),
         Command::Verify => specere_units::verify(&ctx),
         Command::Doctor { clean_orphans } => {

@@ -114,7 +114,11 @@ impl AddUnit for FilterState {
             });
         }
 
-        // .gitignore marker block.
+        // .gitignore marker block. We record only a MarkerEntry (not a
+        // whole-file FileEntry) because .gitignore is a multi-owner file —
+        // other units (claude-code-deploy, etc) may write their own fenced
+        // blocks, and a whole-file SHA on this record would drift and trip
+        // FR-P1-003's SHA-diff gate on every re-install.
         let gi_path = ctx.repo().join(".gitignore");
         let existing = std::fs::read_to_string(&gi_path).unwrap_or_default();
         let new_ign =
@@ -122,12 +126,6 @@ impl AddUnit for FilterState {
                 .map_err(|e| specere_core::Error::Install(format!("gitignore fence: {e}")))?;
         std::fs::write(&gi_path, &new_ign)
             .map_err(|e| specere_core::Error::Install(format!("write .gitignore: {e}")))?;
-        record.files.push(FileEntry {
-            path: PathBuf::from(".gitignore"),
-            sha256_post: specere_manifest::sha256_bytes(new_ign.as_bytes()),
-            owner: Owner::Specere,
-            role: "filter-state-gitignore".into(),
-        });
         record.markers.push(MarkerEntry {
             path: PathBuf::from(".gitignore"),
             unit_id: UNIT_ID.to_string(),

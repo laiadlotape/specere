@@ -296,6 +296,32 @@ pub fn verify(ctx: &Ctx) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// FR-P2-005 / issue #15 — `specere init` meta-command.
+///
+/// Idempotent composition of the five day-one units in a fixed order
+/// (speckit first so the `.specify/` scaffold exists for later units to
+/// write hooks into). Fail-fast on the first unit error; partial installs
+/// are manifest-recorded so `specere remove <unit>` can clean up.
+///
+/// Flags are intentionally not exposed here — `init` always uses defaults.
+/// Users who need per-unit flags (e.g. `--branch alpha-baseline`, `--service`)
+/// install units individually.
+pub fn init(ctx: &Ctx) -> anyhow::Result<()> {
+    const UNIT_ORDER: &[&str] = &[
+        "speckit",
+        "filter-state",
+        "claude-code-deploy",
+        "otel-collector",
+        "ears-linter",
+    ];
+    let flags = AddFlags::default();
+    for unit_id in UNIT_ORDER {
+        add(ctx, unit_id, &flags).with_context(|| format!("init: `{unit_id}` failed"))?;
+    }
+    tracing::info!("specere init: {} unit(s) installed", UNIT_ORDER.len());
+    Ok(())
+}
+
 /// Sweep orphan `.specify/` state (issue #16). Non-destructive if no orphan
 /// is detected. Returns the number of orphan artifact groups cleaned.
 pub fn clean_orphans(ctx: &Ctx) -> anyhow::Result<usize> {
