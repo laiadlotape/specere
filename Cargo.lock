@@ -654,6 +654,7 @@ dependencies = [
  "clap",
  "hex",
  "predicates",
+ "serde_json",
  "sha2",
  "specere-core",
  "specere-manifest",
@@ -705,7 +706,12 @@ name = "specere-telemetry"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "serde",
+ "serde_json",
  "specere-core",
+ "tempfile",
+ "time",
+ "toml",
  "tracing",
 ]
 

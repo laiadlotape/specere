@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (Phase 3)
+- **Event store foundation + `specere observe record/query` CLI** (issue #28 / FR-P3-004 partial). New `event_store` module in `crates/specere-telemetry` with JSONL append-only store at `.specere/events.jsonl`. `Event` struct mirrors a flat OTLP span/log record with `ts`, `source`, `signal`, `name`, `feature_dir`, `attrs`. CLI: `specere observe record --source=<verb> [--feature-dir <p>] [--signal traces|logs] [--name <span>] [--attr KEY=VALUE]...` and `specere observe query [--since <iso>] [--signal <s>] [--source <s>] [--limit N] [--format json|toml|table]`. 7 integration scenarios in `crates/specere/tests/fr_p3_001_event_store.rs` + 5 unit tests in the store module itself. SQLite upgrade (issue #29) and OTLP receivers (issue #30) land next in Phase 3.
+- **`docs/phase3-execution-plan.md`** — mirrors Phase 2 execution plan shape; governs issues #27-#31.
+
 ### Added (post-Phase-2)
 - **`specere lint ears` CLI subcommand** (issue #25). Runs the rules from `.specere/lint/ears.toml` against the active feature's `spec.md` and prints findings as `[SEVERITY rule-id] <bullet-excerpt>`. Always exits 0 (advisory per FR-P2-003). Replaces the agent-only runtime path — the lint is now reproducible in CI via the new integration test `crates/specere/tests/issue_025_ears_lint_cli.rs` (4 scenarios: foo feature with 3 bad bullets, compliant spec, missing feature.json, missing rules). Adds `regex` crate to the workspace dep list.
 
