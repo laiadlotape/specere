@@ -18,3 +18,17 @@ Thumbs.db
 
 # cargo-dist
 /dist/
+
+# <!-- specere:begin harness -->
+# Claude Code local settings and session artifacts (credential-bearing)
+.claude/settings.local.json
+.claude/.session-*
+# SpecERE runtime state (belief store, events, OTel dumps) — committed files
+# are the explicit allowlist below.
+.specere/*
+!.specere/manifest.toml
+!.specere/sensor-map.toml
+!.specere/review-queue.md
+!.specere/decisions.log
+# <!-- specere:end harness -->
+

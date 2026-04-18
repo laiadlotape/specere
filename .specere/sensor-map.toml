@@ -1,0 +1,38 @@
+# SpecERE sensor map — Repo-SLAM sensor channel registry.
+#
+# This file is SpecERE-native (10-rule #5). Nothing outside SpecERE reads or writes it.
+# Rows are (channel, span_or_event, spec_coupling, noise_prior). The filter joins
+# against .specere/posterior.toml at runtime.
+#
+# Channels (per docs/analysis/core_theory.md §3):
+#   A = test / contract measurements   ("GPS fixes" — highest info)
+#   B = read-tool observations         (Read, Glob, Grep, WebFetch, read-only Bash)
+#   C = harness-intrinsic signals      (logprobs, source, thinking-budget, accept/reject)
+#   D = invariant / PBT / mutation     (spatially-localised evidence)
+#
+# Policy: an observed surface NOT present here MUST be recorded in
+# .specere/review-queue.md by `specere review check`.
+
+schema_version = 1
+created_at     = "2026-04-18T00:00:00Z"
+
+# --- Channel A (tests / contracts) ---
+# Populated by `specere observe record --source=test` once the test harness is wired.
+
+# --- Channel B (read observations) ---
+# Populated by post-read hooks (Phase 3+).
+
+# --- Channel C (harness-intrinsic) ---
+[[channels.C]]
+span_name    = "gen_ai.invoke_agent"
+attr_filter  = { "gen_ai.system" = "claude-code" }
+specs        = []     # populated as spec IDs stabilise
+noise_prior  = { R0 = 0.2, entropy_scale = 1.0 }
+
+# --- Channel D (invariants / PBT / mutation) ---
+# Populated when ears-linter / mutation-testing extensions land (Phase 2+).
+
+# --- Coupling graph ---
+# Optional; loaded by the filter when spec IDs are stable. Cycles rejected.
+[coupling]
+edges = []

@@ -1,0 +1,85 @@
+[meta]
+specere_version = "0.1.0-dev"
+schema_version  = 1
+created_at      = "2026-04-18T00:00:00Z"
+branch_at_init  = "000-harness"
+
+# --- Wrapper units (minimal manifest: delegate file-tracking to upstream) ---
+
+[[units]]
+id             = "speckit"
+kind           = "wrapper"
+version        = "v0.7.3"
+installed_at   = "2026-04-18T00:00:00Z"
+install_config = { integration = "claude", script = "sh", ai_skills = true, offline = true }
+
+# --- Native units (full manifest: file list + SHA256 + markers) ---
+
+[[units]]
+id           = "harness"
+kind         = "native"
+version      = "0.1.0"
+installed_at = "2026-04-18T00:00:00Z"
+
+  [[units.files]]
+  path        = ".specify/memory/constitution.md"
+  owner       = "specere"
+  role        = "constitution"
+  sha256_post = "PENDING"
+
+  [[units.files]]
+  path        = ".specify/workflows/specere-observe/workflow.yml"
+  owner       = "specere"
+  role        = "workflow"
+  sha256_post = "PENDING"
+
+  [[units.files]]
+  path        = ".specere/manifest.toml"
+  owner       = "specere"
+  role        = "manifest"
+  sha256_post = "SELF"
+
+  [[units.files]]
+  path        = ".specere/sensor-map.toml"
+  owner       = "specere"
+  role        = "sensor-map"
+  sha256_post = "PENDING"
+
+  [[units.files]]
+  path        = ".specere/review-queue.md"
+  owner       = "specere"
+  role        = "review-queue"
+  sha256_post = "PENDING"
+
+  [[units.files]]
+  path        = ".claude/skills/specere-observe-implement/SKILL.md"
+  owner       = "specere"
+  role        = "skill"
+  sha256_post = "PENDING"
+
+  [[units.files]]
+  path        = ".claude/skills/specere-review-check/SKILL.md"
+  owner       = "specere"
+  role        = "skill"
+  sha256_post = "PENDING"
+
+  [[units.files]]
+  path        = ".claude/skills/specere-review-drain/SKILL.md"
+  owner       = "specere"
+  role        = "skill"
+  sha256_post = "PENDING"
+
+  [[units.markers]]
+  path  = "CLAUDE.md"
+  begin = "<!-- specere:begin harness -->"
+  end   = "<!-- specere:end harness -->"
+
+  [[units.markers]]
+  path  = ".gitignore"
+  begin = "# <!-- specere:begin harness -->"
+  end   = "# <!-- specere:end harness -->"
+
+  [[units.markers]]
+  path  = ".specify/extensions.yml"
+  begin = "# >>> specere:begin harness"
+  end   = "# <<< specere:end harness"

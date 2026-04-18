@@ -1,0 +1,3 @@
+# SpecERE adjudication log — decisions made via `specere review drain`.
+# Format: RFC3339-timestamp \t surface \t decision \t rationale
+# Decisions: EXTEND | IGNORE | ALLOWLIST | ADJUDICATE
