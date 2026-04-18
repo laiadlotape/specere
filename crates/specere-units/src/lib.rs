@@ -5,6 +5,7 @@ use anyhow::{anyhow, Context};
 use specere_core::{AddUnit, Ctx, Owner};
 use specere_manifest::{record_to_unit_entry, sha256_file, Manifest};
 
+pub mod deploy;
 pub mod speckit;
 
 pub const SPECERE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -13,12 +14,9 @@ pub const SPECERE_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn lookup(id: &str) -> Option<Box<dyn AddUnit>> {
     match id {
         "speckit" => Some(Box::new(speckit::Speckit)),
+        "claude-code-deploy" => Some(Box::new(deploy::claude_code::ClaudeCodeDeploy)),
         "filter-state" => Some(Box::new(stub::StubUnit {
             id: "filter-state",
-            reason: "planned in 0.1.0 MVP; not yet implemented",
-        })),
-        "claude-code-hooks" => Some(Box::new(stub::StubUnit {
-            id: "claude-code-hooks",
             reason: "planned in 0.1.0 MVP; not yet implemented",
         })),
         "otel-collector" => Some(Box::new(stub::StubUnit {
@@ -83,6 +81,9 @@ pub fn remove(ctx: &Ctx, unit_id: &str, dry_run: bool, _force: bool) -> anyhow::
         for d in &entry.dirs {
             println!("  dir    {}", d.display());
         }
+        if entry.files.is_empty() && entry.dirs.is_empty() && entry.markers.is_empty() {
+            println!("  (wrapper unit — delegates to upstream on remove)");
+        }
         return Ok(());
     }
 
@@ -90,7 +91,14 @@ pub fn remove(ctx: &Ctx, unit_id: &str, dry_run: bool, _force: bool) -> anyhow::
     unit.remove(ctx, &record).context("remove failed")?;
 
     manifest.remove(unit.id());
-    manifest.save(&ctx.manifest_path())?;
+    // If the manifest has no units left, garbage-collect the .specere/ directory
+    // entirely so the repo returns to its pre-install state.
+    if manifest.units.is_empty() {
+        let _ = std::fs::remove_file(ctx.manifest_path());
+        let _ = std::fs::remove_dir(ctx.specere_dir());
+    } else {
+        manifest.save(&ctx.manifest_path())?;
+    }
 
     tracing::info!("removed `{}`", unit.id());
     Ok(())
@@ -104,10 +112,16 @@ pub fn status(ctx: &Ctx) -> anyhow::Result<()> {
     }
     println!("SpecERE units installed in {}:", ctx.repo().display());
     for u in &manifest.units {
+        let shape = if u.files.is_empty() && u.markers.is_empty() {
+            "wrapper"
+        } else {
+            "native"
+        };
         println!(
-            "  {} @ {} ({} files, {} markers)",
+            "  {} @ {} [{}] ({} files, {} markers)",
             u.id,
             u.version,
+            shape,
             u.files.len(),
             u.markers.len()
         );
