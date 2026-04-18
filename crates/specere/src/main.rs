@@ -40,6 +40,11 @@ enum Command {
         /// FR-P1-002). Wins over `$SPECERE_FEATURE_BRANCH`.
         #[arg(long, value_name = "NAME")]
         branch: Option<String>,
+
+        /// Write a platform-specific service artifact (otel-collector
+        /// only; issue #13 / FR-P2-002).
+        #[arg(long)]
+        service: bool,
     },
     /// Remove one add-unit from the target repository.
     Remove {
@@ -91,10 +96,12 @@ fn main() -> Result<()> {
             unit,
             adopt_edits,
             branch,
+            service,
         } => {
             let flags = specere_units::AddFlags {
                 branch,
                 adopt_edits,
+                with_service: service,
             };
             specere_units::add(&ctx, &unit, &flags)
         }

@@ -8,6 +8,7 @@ use specere_manifest::{record_to_unit_entry, sha256_file, Manifest};
 pub mod deploy;
 pub mod filter_state;
 pub mod orphan;
+pub mod otel_collector;
 pub mod speckit;
 
 pub const SPECERE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -19,6 +20,8 @@ pub struct AddFlags {
     pub branch: Option<String>,
     /// `--adopt-edits` — drives the SHA-diff gate's fallback path.
     pub adopt_edits: bool,
+    /// `--service` — only consumed by the `otel-collector` unit (Phase 2 / #13).
+    pub with_service: bool,
 }
 
 /// Return the `AddUnit` trait object for a given unit id + flags.
@@ -31,10 +34,9 @@ pub fn lookup(id: &str, flags: &AddFlags) -> Option<Box<dyn AddUnit>> {
         ))),
         "claude-code-deploy" => Some(Box::new(deploy::claude_code::ClaudeCodeDeploy)),
         "filter-state" => Some(Box::new(filter_state::FilterState)),
-        "otel-collector" => Some(Box::new(stub::StubUnit {
-            id: "otel-collector",
-            reason: "planned in 0.1.0 MVP; not yet implemented",
-        })),
+        "otel-collector" => Some(Box::new(otel_collector::OtelCollector::new(
+            flags.with_service,
+        ))),
         "ears-linter" => Some(Box::new(stub::StubUnit {
             id: "ears-linter",
             reason: "planned in 0.1.0 MVP; not yet implemented",
