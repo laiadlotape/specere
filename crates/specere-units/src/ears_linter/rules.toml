@@ -1,0 +1,38 @@
+# SpecERE EARS-style requirement linter rules. Advisory only in v1
+# (FR-P2-003 — MUST NOT block any /speckit-* command).
+#
+# The lint runs on spec.md files under specs/**/spec.md and emits
+# warnings against the `[Functional Requirements]` section. Phase-3 may
+# promote individual rules to blocking per the user's constitution.
+
+schema_version = 1
+
+[[rules]]
+id = "ears-fr-prefix"
+severity = "warning"
+description = "Functional requirements SHOULD use a canonical FR-NNN (or FR-P<phase>-NNN) prefix"
+scope = "functional-requirements"
+pattern = '^\s*-\s*\*\*FR(-P\d+)?-\d{3,}\*\*:'
+
+[[rules]]
+id = "ears-must-should"
+severity = "warning"
+description = "FRs SHOULD contain MUST or SHOULD (capitalised) to express the requirement strength"
+scope = "functional-requirements"
+pattern = '\b(MUST|SHOULD)\b'
+
+[[rules]]
+id = "ears-condition-keyword"
+severity = "info"
+description = "Condition-bearing FRs SHOULD use EARS keywords (WHEN / WHILE / WHERE / IF) for condition framing"
+scope = "functional-requirements"
+pattern = '\b(WHEN|WHILE|WHERE|IF)\b'
+condition_only = true
+
+[[rules]]
+id = "ears-no-ambiguous-adj"
+severity = "info"
+description = "Avoid ambiguous adjectives (robust, intuitive, efficient) in FRs without a measurable backing in Success Criteria"
+scope = "functional-requirements"
+pattern = '(?i)\b(robust|intuitive|efficient|scalable|user-friendly)\b'
+bad_match = true

@@ -6,6 +6,7 @@ use specere_core::{AddUnit, Ctx, Owner};
 use specere_manifest::{record_to_unit_entry, sha256_file, Manifest};
 
 pub mod deploy;
+pub mod ears_linter;
 pub mod filter_state;
 pub mod orphan;
 pub mod otel_collector;
@@ -37,10 +38,7 @@ pub fn lookup(id: &str, flags: &AddFlags) -> Option<Box<dyn AddUnit>> {
         "otel-collector" => Some(Box::new(otel_collector::OtelCollector::new(
             flags.with_service,
         ))),
-        "ears-linter" => Some(Box::new(stub::StubUnit {
-            id: "ears-linter",
-            reason: "planned in 0.1.0 MVP; not yet implemented",
-        })),
+        "ears-linter" => Some(Box::new(ears_linter::EarsLinter)),
         _ => None,
     }
 }
@@ -399,43 +397,6 @@ impl UnitEntryExt for specere_manifest::UnitEntry {
                 .collect(),
             dirs: self.dirs.clone(),
             notes: self.notes.clone(),
-        }
-    }
-}
-
-mod stub {
-    use specere_core::{AddUnit, Ctx, Plan, Record, Result};
-
-    pub struct StubUnit {
-        pub id: &'static str,
-        pub reason: &'static str,
-    }
-
-    impl AddUnit for StubUnit {
-        fn id(&self) -> &'static str {
-            self.id
-        }
-        fn pinned_version(&self) -> &'static str {
-            "unimplemented"
-        }
-        fn preflight(&self, _ctx: &Ctx) -> Result<Plan> {
-            Err(specere_core::Error::Other(anyhow::anyhow!(
-                "unit `{}` is not yet implemented: {}",
-                self.id,
-                self.reason
-            )))
-        }
-        fn install(&self, _ctx: &Ctx, _plan: &Plan) -> Result<Record> {
-            Err(specere_core::Error::Other(anyhow::anyhow!(
-                "unit `{}` is not yet implemented",
-                self.id
-            )))
-        }
-        fn remove(&self, _ctx: &Ctx, _record: &Record) -> Result<()> {
-            Err(specere_core::Error::Other(anyhow::anyhow!(
-                "unit `{}` is not yet implemented",
-                self.id
-            )))
         }
     }
 }
