@@ -5,6 +5,14 @@
 **Status**: Draft
 **Input**: User description: "Phase 1 bugfix release (0.2.0): close all six FRs — P1-001..P1-006 — for the speckit wrapper unit and the claude-code-deploy unit."
 
+## Clarifications
+
+### Session 2026-04-18
+- Q: Where in `.specere/manifest.toml` does FR-P1-007 record the auto-created branch name? → A: Unit-level, as `units[id=speckit].install_config.branch_name` alongside a boolean `branch_was_created_by_specere`.
+- Q: What does `specere add <unit> --adopt-edits` do when an owned file has been outright DELETED (not just edited)? → A: Refuse. `--adopt-edits` is scoped to content changes; deletion is a structural change — the user runs `specere remove` then `specere add` instead.
+- Q: Is SC-008 (one-shot external-developer usability check before v0.2.0) blocking or aspirational? → A: Aspirational. The CHANGELOG documents the outcome if performed; the tag does not block on it. The other success criteria remain blocking.
+- Q: Does FR-P1-008's "refuse-on-parse-failure" rule cover TOML and JSON files, or only YAML and plain text? → A: All declared formats the harness parses — YAML (`extensions.yml`), TOML (`.specere/*.toml`), JSON (`.specify/workflows/workflow-registry.json`), and plain text (`.gitignore`).
+
 ## User Scenarios & Testing *(mandatory)*
 
 The four user stories below cover the four confirmed bugs from the first dogfood pass (recorded in `docs/specere_v1.md` §4 and the project-memory entry `feedback_adoption_bugs.md`). Each story is an independently testable vertical slice and each ships alongside regression tests that pin the bug.
@@ -99,15 +107,15 @@ Six phase-prefixed FRs, one per line item of `docs/specere_v1.md` §5 Phase 1. I
 
 - **FR-P1-001**: The `speckit` unit installer MUST NOT request no-git behaviour from the underlying SpecKit scaffolder when the target directory contains a `.git/` directory.
 - **FR-P1-002**: When the `speckit` unit installer runs against a git-backed target, it MUST finish with the working tree on a feature branch whose name is `000-baseline` by default, or the value of the `SPECERE_FEATURE_BRANCH` override when that override is provided.
-- **FR-P1-003**: Every unit installer MUST refuse to re-write any owned file whose current on-disk content hash differs from the hash the manifest recorded at the previous install, unless the user explicitly passes the `--adopt-edits` override — in which case the installer MUST update the manifest to record the user's current content as the new owner baseline, without overwriting it.
+- **FR-P1-003**: Every unit installer MUST refuse to re-write any owned file whose current on-disk content hash differs from the hash the manifest recorded at the previous install, unless the user explicitly passes the `--adopt-edits` override — in which case the installer MUST update the manifest to record the user's current content as the new owner baseline, without overwriting it. If an owned file is missing entirely (deletion, not edit), `--adopt-edits` MUST refuse with a message directing the user to `specere remove <unit>` followed by `specere add <unit>` — deletion is a structural change and is out of `--adopt-edits` scope.
 - **FR-P1-004**: The `claude-code-deploy` unit installer MUST append an entry for `.claude/settings.local.json` to the target repository's `.gitignore`, placed inside a SpecERE marker-fenced block owned by the `claude-code-deploy` unit; any pre-existing content in `.gitignore` MUST be preserved verbatim.
 - **FR-P1-005**: The `claude-code-deploy` unit installer MUST register exactly one `after_implement` hook in `.specify/extensions.yml` that names the SpecERE implement-observer command; any pre-existing hooks in that file MUST be preserved verbatim.
 - **FR-P1-006**: The `claude-code-deploy` unit remover MUST strip exactly the `after_implement` hook entry it registered at install time and the marker-fenced block it added to `.gitignore`; all other content in both shared files MUST remain bit-identical to the pre-remove state.
 
 Supporting requirements, derived from the edge cases above:
 
-- **FR-P1-007**: When the `speckit` unit installer runs against a git-backed target and records the feature branch it created, the manifest entry for that install MUST include the branch name so a later remove invocation can reference it.
-- **FR-P1-008**: When any unit installer encounters a shared file whose existing content is syntactically invalid for its declared format (YAML for `.specify/extensions.yml`, plain text for `.gitignore`), the installer MUST refuse to rewrite that file and MUST surface an actionable error naming the file and the parse failure.
+- **FR-P1-007**: When the `speckit` unit installer runs against a git-backed target and records the feature branch it created, the manifest entry for that install MUST include the branch name and a boolean flag distinguishing "branch created by SpecERE" from "branch pre-existed" — both fields live on the unit's record as `install_config.branch_name` and `install_config.branch_was_created_by_specere`, so `specere remove <unit>` can read both from the same record.
+- **FR-P1-008**: When any unit installer encounters a shared file whose existing content is syntactically invalid for its declared format, the installer MUST refuse to rewrite that file and MUST surface an actionable error naming the file and the parse failure. Declared formats covered: YAML (`.specify/extensions.yml`), TOML (`.specere/manifest.toml`, `.specere/sensor-map.toml`), JSON (`.specify/workflows/workflow-registry.json`), and plain text (`.gitignore`). Adding a new declared format to the harness implies extending this rule to cover it.
 - **FR-P1-009**: Every bug enumerated in `docs/specere_v1.md` §4 that falls under Phase 1 (rows 1, 2, 3, 4) MUST have at least one regression test that fails against the pre-fix codebase and passes against the post-fix codebase.
 
 ### Key Entities
@@ -129,7 +137,7 @@ Supporting requirements, derived from the edge cases above:
 - **SC-005**: After `claude-code-deploy` is installed on a fresh repository, exactly one entry appears under the `after_implement` hook list in `.specify/extensions.yml`; zero duplicate entries appear on any re-install.
 - **SC-006**: After `claude-code-deploy` is installed, the `.gitignore` file contains exactly one marker-fenced block owned by that unit, and that block contains an entry for `.claude/settings.local.json`; zero duplicate blocks appear on re-install.
 - **SC-007**: The integration test suite covering these user stories runs to green on a standard developer laptop in under five minutes total wall-clock time.
-- **SC-008**: A developer who has not seen SpecERE before can, by reading only the 0.2.0 release notes and `specere --help`, successfully install the two units on a fixture repository and reach a working `/speckit-clarify` invocation without external guidance, measured by a one-shot usability check against at least one such developer before the release tag.
+- **SC-008** (aspirational, non-blocking): A developer who has not seen SpecERE before can, by reading only the 0.2.0 release notes and `specere --help`, successfully install the two units on a fixture repository and reach a working `/speckit-clarify` invocation without external guidance. This is a usability signal captured in the 0.2.0 CHANGELOG if a session is performed, but it does **not** block the release tag. The blocking criteria for v0.2.0 are SC-001 through SC-007.
 
 ## Assumptions
 
