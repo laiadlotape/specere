@@ -5,6 +5,9 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 ## [Unreleased]
 
 ### Added (Phase 3)
+- **SQLite event store** (issue #29 / FR-P3-003 / FR-P3-004 / FR-P3-005). New `sqlite_backend` module in `crates/specere-telemetry` promotes SQLite at `.specere/events.sqlite` to the primary store; JSONL stays as the human-inspectable mirror. Schema: single `events` table with indexes on `ts`, `source`, `signal`. WAL journal mode + NORMAL synchronous (crash-safe writes + concurrent reads). Auto-backfill from JSONL on first `query` call if SQLite is empty but JSONL has content (migrates post-#28 repos transparently). `rusqlite = "0.32"` (bundled SQLite) added to workspace. 5 unit tests + 4 integration tests in `crates/specere/tests/fr_p3_002_sqlite_backend.rs` including a 10k-event indexed-query smoke within a 2s CI ceiling.
+
+### Added (Phase 3)
 - **Event store foundation + `specere observe record/query` CLI** (issue #28 / FR-P3-004 partial). New `event_store` module in `crates/specere-telemetry` with JSONL append-only store at `.specere/events.jsonl`. `Event` struct mirrors a flat OTLP span/log record with `ts`, `source`, `signal`, `name`, `feature_dir`, `attrs`. CLI: `specere observe record --source=<verb> [--feature-dir <p>] [--signal traces|logs] [--name <span>] [--attr KEY=VALUE]...` and `specere observe query [--since <iso>] [--signal <s>] [--source <s>] [--limit N] [--format json|toml|table]`. 7 integration scenarios in `crates/specere/tests/fr_p3_001_event_store.rs` + 5 unit tests in the store module itself. SQLite upgrade (issue #29) and OTLP receivers (issue #30) land next in Phase 3.
 - **`docs/phase3-execution-plan.md`** — mirrors Phase 2 execution plan shape; governs issues #27-#31.
 

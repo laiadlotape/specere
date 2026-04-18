@@ -8,6 +8,7 @@
 use specere_core::Ctx;
 
 pub mod event_store;
+pub mod sqlite_backend;
 
 pub use event_store::{Event, QueryFilters};
 
@@ -20,19 +21,30 @@ pub fn observe(_ctx: &Ctx) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Record one event into the store. Timestamp defaults to `now_rfc3339()` if
-/// caller left it blank.
+/// Record one event into both the SQLite store (primary, issue #29) and the
+/// JSONL mirror (human-inspectable, issue #28). Timestamp defaults to
+/// `now_rfc3339()` if the caller left it blank.
 pub fn record(ctx: &Ctx, event: Event) -> anyhow::Result<()> {
     let mut event = event;
     if event.ts.is_empty() {
         event.ts = event_store::now_rfc3339();
     }
-    event_store::append(ctx.repo(), &event)
+    // Primary: SQLite (indexed, fast queries).
+    let conn = sqlite_backend::open(ctx.repo())?;
+    sqlite_backend::append(&conn, &event)?;
+    // Mirror: JSONL (grep-friendly, crash-forensics, human inspection).
+    event_store::append(ctx.repo(), &event)?;
+    Ok(())
 }
 
-/// Query the event store. Returns events in chronological order.
+/// Query the event store. Prefers SQLite; on a JSONL-only repo (post-#28 /
+/// pre-#29 state) the backend backfills SQLite from JSONL once on first call.
 pub fn query(ctx: &Ctx, filters: &QueryFilters) -> anyhow::Result<Vec<Event>> {
-    event_store::query(ctx.repo(), filters)
+    let jsonl = event_store::default_path(ctx.repo());
+    let conn = sqlite_backend::open(ctx.repo())?;
+    // One-shot migration: empty SQLite + existing JSONL → copy.
+    let _ = sqlite_backend::backfill_from_jsonl(&conn, &jsonl)?;
+    sqlite_backend::query(&conn, filters)
 }
 
 /// Output format for `query`.
