@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-18
+
+First release with a live filter engine. Closes Phase 3 (observe pipeline) and Phase 4 (filter engine) main tracks plus the phase-4-follow-ups (Python-prototype parity + throughput).
+
 ### Added (Phase 4 follow-ups — FR-P4-002 + FR-P4-005)
 - **Gate-A Python-prototype parity test** (FR-P4-002 closure). New `scripts/export_gate_a_posterior.py` dumps a 324-event trace + expected beliefs from the ReSearch prototype into `crates/specere-filter/tests/fixtures/gate_a/posterior.toml` (one-time export; commit and re-pin only when algorithmic priors change). New integration test `crates/specere-filter/tests/gate_a_parity.rs` replays the trace through Rust `PerSpecHMM` and asserts per-cell absolute difference < 0.02 vs the prototype's final beliefs. Observed max cell diff on this laptop: **0.000000** — Rust output is bit-identical to Python at the fixture's precision.
 - **`Motion::prototype_defaults` + `DefaultTestSensor` aligned to prototype** (FR-P4-002 prerequisite). Transition matrices now match `ReSearch/prototype/mini_specs/world.py::build_demo_world` (`t_good`, `t_bad`, `t_leak`) verbatim. `DefaultTestSensor` uses the prototype's `alpha_sat=0.92, alpha_vio=0.90, alpha_unk=0.55` constants with the same 1e-6 log-floor. Hand-computed test expectations in `perspec_hmm_hand_computed.rs` updated to the new matrices.
