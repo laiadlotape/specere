@@ -1,0 +1,76 @@
+name: Claude PR review
+
+# Automated Claude review of every pull request. Posts findings as PR review
+# comments. Requires one of:
+#
+#   (a) the Claude GitHub App installed on this repo (preferred for a public
+#       repo — no static secret), OR
+#   (b) a repo secret `ANTHROPIC_API_KEY` set under Settings → Secrets and
+#       variables → Actions.
+#
+# See `docs/auto-review.md` for first-time setup.
+#
+# If neither is present, this job no-ops with a warning; it never blocks the
+# PR. Other CI gates (rustfmt, clippy, test, docs-sync) remain authoritative.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  # One review per PR at a time; re-pushes supersede in-flight runs.
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    name: review
+    runs-on: ubuntu-latest
+    # Skip on forks — the PR token can't post reviews across fork boundaries.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Run Claude PR review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            You are reviewing a pull request to the SpecERE repository.
+
+            Context the reviewer should read before commenting:
+            - `.specify/memory/constitution.md` — the 10-rule composition pattern
+              ("Compose, never clone"), reversible-units invariant, human-in-the-loop
+              discipline (core_theory §4), and harness self-extension rule.
+            - `docs/specere_v1.md` — the 7-phase master plan.
+            - `docs/research/09_speckit_capabilities.md` §13 — composition pattern.
+            - The PR's own `specs/NNN-*/spec.md` + `plan.md` if they exist.
+
+            Review the diff against:
+            1. **Constitution compliance** — does the change respect all 10 composition
+               rules? Especially rules 1, 2, 4, 8, 10. Flag any rule violation as
+               blocking.
+            2. **Reversibility (principle III)** — if a new unit or install path is
+               added, verify a matching `remove` exists and is a true inverse.
+            3. **Tests** — every FR referenced in the diff should have a regression
+               test. Missing tests for new FRs are blocking.
+            4. **Cross-platform** — path separators, shell assumptions, `CARGO_BIN_EXE_*`
+               placement. Flag anything that looks Linux-only.
+            5. **Documentation drift** — if the diff touches `crates/**/*.rs`, is
+               `README.md` / `CHANGELOG.md` / `docs/**/*.md` also updated?
+               (The `docs-sync` CI job enforces this; your review should corroborate.)
+            6. **Narrow parse surface (rule 10)** — flag any new file format SpecERE
+               starts parsing without a matching entry in FR-P1-008's declared-format
+               list.
+
+            Post your findings as a PR review. Use inline comments for code-specific
+            feedback; use the summary for cross-cutting concerns. If the diff is
+            clean, post an approval with a one-line rationale. Do NOT approve when
+            any blocking item is present — request changes instead.
