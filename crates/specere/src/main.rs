@@ -86,8 +86,8 @@ enum Command {
         #[command(subcommand)]
         kind: ObserveKind,
     },
-    /// Start the embedded OTLP/HTTP receiver. Blocks until SIGINT.
-    /// Issue #30 / FR-P3-001 partial + FR-P3-005.
+    /// Start the embedded OTLP/HTTP + gRPC receivers. Blocks until SIGINT.
+    /// Issue #30 (HTTP) + #34 (gRPC) / FR-P3-001 + FR-P3-005.
     Serve {
         /// Path to the otel-config.yml (default: `.specere/otel-config.yml`).
         #[arg(long)]
@@ -95,6 +95,9 @@ enum Command {
         /// Override the HTTP bind address (host:port). Wins over the YAML.
         #[arg(long)]
         bind: Option<String>,
+        /// Override the gRPC bind address (host:port). Wins over the YAML.
+        #[arg(long)]
+        grpc_bind: Option<String>,
     },
 }
 
@@ -219,7 +222,11 @@ fn main() -> Result<()> {
                 format,
             } => run_observe_query(&ctx, since, signal, source, limit, &format),
         },
-        Command::Serve { config, bind } => run_serve(&ctx, config, bind),
+        Command::Serve {
+            config,
+            bind,
+            grpc_bind,
+        } => run_serve(&ctx, config, bind, grpc_bind),
     };
 
     if let Err(e) = result {
@@ -237,24 +244,38 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_serve(ctx: &specere_core::Ctx, config: Option<PathBuf>, bind: Option<String>) -> Result<()> {
+fn run_serve(
+    ctx: &specere_core::Ctx,
+    config: Option<PathBuf>,
+    bind: Option<String>,
+    grpc_bind: Option<String>,
+) -> Result<()> {
     let config_path = config.unwrap_or_else(|| ctx.repo().join(".specere/otel-config.yml"));
-    let mut cfg = specere_telemetry::serve::load_config(&config_path);
-    if let Some(addr) = bind {
-        cfg.http_bind = addr.parse()?;
-    }
+    let cfg = specere_telemetry::serve::load_config(&config_path);
+    let http_bind = match bind {
+        Some(addr) => addr.parse()?,
+        None => cfg.http_bind,
+    };
+    let grpc_bind = match grpc_bind {
+        Some(addr) => addr.parse()?,
+        None => specere_telemetry::load_grpc_endpoint(&config_path)
+            .unwrap_or_else(specere_telemetry::default_grpc_bind),
+    };
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
     rt.block_on(async move {
         let repo = ctx.repo().to_path_buf();
-        specere_telemetry::serve_http(repo, cfg, async {
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        let signal = tokio::spawn(async move {
             if let Err(e) = tokio::signal::ctrl_c().await {
                 tracing::warn!("failed to install SIGINT handler: {e}");
             }
-        })
-        .await?;
+            let _ = tx.send(true);
+        });
+        specere_telemetry::serve_both(repo, http_bind, grpc_bind, rx).await?;
+        let _ = signal.await;
         Ok::<_, anyhow::Error>(())
     })?;
     Ok(())

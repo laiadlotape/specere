@@ -13,25 +13,18 @@
 - **Phase mapping.** `docs/specere_v1.md §5.P4` (FR-P4-001 … FR-P4-006).
 - **Workflow.** Per `docs/contributing-via-issues.md`. Sub-issues likely split per filter family (PerSpecHMM → FactorGraphBP → RBPF) so each lands testable against the ReSearch prototype's Gate-A scenario.
 
-### 2. `phase-3-follow-up-grpc` — OTLP/gRPC receiver (#34)
-
-- **Tracked at:** [issue #34](https://github.com/laiadlotape/specere/issues/34) (split from #30 during Phase 3 re-plan).
-- **Deliverables.** Add `tonic` gRPC server on :4317 via `opentelemetry-proto` generated types. `specere serve` starts both receivers concurrently via `tokio::try_join!`.
-- **Why deferred.** Phase 3 scope-growth trigger fired when adding tonic + opentelemetry-proto to the same PR as axum HTTP; clean split to keep `#30`'s scope under the 600 LoC ceiling. HTTP half is live; gRPC is the remaining half of FR-P3-001.
-- **Workflow.** Single issue → single PR; no sub-issues needed.
-
 ## Beyond the immediate queue
 
 Phases 5–7 (motion-model calibration, cross-session persistence, v1.0.0 dogfood) remain as in the master plan.
 
 ## Recently closed
 
+- **phase-3-follow-up-grpc** (2026-04-18, [issue #34](https://github.com/laiadlotape/specere/issues/34)) — OTLP/gRPC receiver closes FR-P3-001; `specere serve` now runs HTTP + gRPC concurrently over one SQLite connection.
 - **phase-3-observe-pipeline main track** (2026-04-18, parent [#27](https://github.com/laiadlotape/specere/issues/27)) — event pipeline live; execution plan archived at [`docs/history/phase3-execution-plan.md`](history/phase3-execution-plan.md).
   - [#28](https://github.com/laiadlotape/specere/issues/28) event store JSONL + CLI (PR #32) — `specere observe record/query`.
   - [#29](https://github.com/laiadlotape/specere/issues/29) SQLite backend + WAL (PR #33) — primary store; JSONL mirror.
   - [#30](https://github.com/laiadlotape/specere/issues/30) OTLP/HTTP receiver + `specere serve` (PR #35).
   - [#31](https://github.com/laiadlotape/specere/issues/31) workflow-span hooks for all 7 verbs (PR #36).
-  - gRPC receiver queued as [#34](https://github.com/laiadlotape/specere/issues/34) (Phase-3-follow-up priority 2).
 - **phase-2-native-units** (2026-04-18, parent [#11](https://github.com/laiadlotape/specere/issues/11)) — all 5 MVP units real; execution plan archived at [`docs/history/phase2-execution-plan.md`](history/phase2-execution-plan.md).
   - [#12](https://github.com/laiadlotape/specere/issues/12) filter-state (PR #19) — `.specere/` skeleton + gitignore allowlist.
   - [#16](https://github.com/laiadlotape/specere/issues/16) speckit orphan detector (PR #20) — `Speckit::preflight` + `specere doctor --clean-orphans`.

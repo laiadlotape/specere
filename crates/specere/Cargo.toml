@@ -39,3 +39,5 @@ toml.workspace = true
 serde_json.workspace = true
 specere-telemetry.workspace = true
 reqwest.workspace = true
+tonic.workspace = true
+opentelemetry-proto.workspace = true

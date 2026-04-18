@@ -41,6 +41,10 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 axum = "0.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "net"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tonic = { version = "0.14", features = ["transport"] }
+opentelemetry-proto = { version = "0.31", features = ["gen-tonic", "trace", "logs"] }
+prost = "0.14"
+tokio-stream = { version = "0.1", features = ["net"] }
 
 specere-core = { path = "crates/specere-core", version = "0.2.0" }
 specere-units = { path = "crates/specere-units", version = "0.2.0" }
