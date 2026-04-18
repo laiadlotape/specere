@@ -8,10 +8,12 @@
 use specere_core::Ctx;
 
 pub mod event_store;
+pub mod grpc;
 pub mod serve;
 pub mod sqlite_backend;
 
 pub use event_store::{Event, QueryFilters};
+pub use grpc::serve_grpc;
 pub use serve::{serve_http, ServeConfig};
 
 /// Legacy stub. Kept for back-compat until the `Observe` CLI migrates entirely

@@ -44,6 +44,7 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 tonic = { version = "0.14", features = ["transport"] }
 opentelemetry-proto = { version = "0.31", features = ["gen-tonic", "trace", "logs"] }
 prost = "0.14"
+tokio-stream = { version = "0.1", features = ["net"] }
 
 specere-core = { path = "crates/specere-core", version = "0.2.0" }
 specere-units = { path = "crates/specere-units", version = "0.2.0" }

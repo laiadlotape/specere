@@ -23,6 +23,7 @@ tokio.workspace = true
 tonic.workspace = true
 opentelemetry-proto.workspace = true
 prost.workspace = true
+tokio-stream.workspace = true
 specere-core.workspace = true
 
 [dev-dependencies]
