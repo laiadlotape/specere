@@ -19,10 +19,12 @@ pub mod bp;
 pub mod coupling;
 pub mod hmm;
 pub mod motion;
+pub mod rbpf;
 pub mod state;
 
 pub use bp::FactorGraphBP;
 pub use coupling::CouplingGraph;
 pub use hmm::PerSpecHMM;
 pub use motion::Motion;
+pub use rbpf::RBPF;
 pub use state::{Belief, Status, TestSensor};
