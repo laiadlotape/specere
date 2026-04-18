@@ -2,9 +2,9 @@
 
 > **Status.** Planning, 2026-04-18 pivot. Governs all pre-1.0 work.
 >
-> **Rule of rules.** Compose, never clone. Every capability this document enumerates answers one question: "is this something [SpecKit](https://github.com/github/spec-kit) or [OTel](https://opentelemetry.io/docs/specs/semconv/gen-ai/) already does?" If yes, SpecERE **wraps** it. If no, SpecERE **extends**. If it's fluff, SpecERE **ignores**. See `laiadlotape/ReSearch` `docs/research/09_speckit_capabilities.md` §12 for the full capability matrix (22 WRAP / 4 IGNORE / 15 EXTEND) and §13 for the 10-rule composition pattern that governs this whole document.
+> **Rule of rules.** Compose, never clone. Every capability this document enumerates answers one question: "is this something [SpecKit](https://github.com/github/spec-kit) or [OTel](https://opentelemetry.io/docs/specs/semconv/gen-ai/) already does?" If yes, SpecERE **wraps** it. If no, SpecERE **extends**. If it's fluff, SpecERE **ignores**. See [`docs/research/09_speckit_capabilities.md`](research/09_speckit_capabilities.md) §12 for the full capability matrix (22 WRAP / 4 IGNORE / 15 EXTEND) and §13 for the 10-rule composition pattern that governs this whole document.
 >
-> **Source of truth for theory.** The `ReSearch` monorepo (`docs/analysis/`, `docs/roadmap/`, `docs/research/`, `prototype/`). SpecERE does not re-derive theory; it *implements* what ReSearch has already argued for.
+> **Source of truth for theory.** The [`ReSearch`](https://github.com/laiadlotape/ReSearch) monorepo (`docs/analysis/`, `docs/roadmap/`, `docs/research/`, `prototype/`, `latex/`). SpecERE does not re-derive theory; it *implements* what ReSearch has already argued for.
 
 ---
 
@@ -35,7 +35,7 @@ That scenario is the v1.0 acceptance test, dogfooded on ReSearch.
 
 ## 2. Governing rules (the 10-rule composition pattern)
 
-Borrowed verbatim from ReSearch/09 §13 and treated as non-negotiable:
+Borrowed verbatim from [`docs/research/09_speckit_capabilities.md`](research/09_speckit_capabilities.md) §13 and treated as non-negotiable:
 
 1. **Installer** detects git vs non-git and behaves accordingly. On a git repo, `specere add speckit` drops `--no-git` and auto-creates a feature branch (default `000-baseline`, overridable). Never `--force` without a SHA-diff step.
 2. **Hook registration** is the *only* way SpecERE runs on `/speckit-*` command boundaries. Hooks live in `.specify/extensions.yml`. SpecERE never embeds dispatch logic into slash-command prompts.
@@ -88,7 +88,7 @@ Seven phases, ~20-24 weeks of focused work.
 
 **Deliverable:** the existing SpecERE code compiles clean, docs reflect the pivot, CONTRIBUTING.md explains compose-never-clone and the dot-vs-hyphen rewrite rule.
 
-- **T000** Update `README.md` to cite ReSearch/09 §13 as the governing spec.
+- **T000** Update `README.md` to cite `docs/research/09_speckit_capabilities.md` §13 as the governing spec.
 - **T001** Extend `CONTRIBUTING.md` with: the 10-rule composition pattern, the dot-vs-hyphen rewrite, the "never edit `.specify/templates/` directly" rule, the uninstall contract.
 - **T002** Update `CHANGELOG.md` with the pivot entry.
 - **T003** Rewrite this document's §5 phase plan as `docs/roadmap.md` pointer so downstream contributors find it from the repo root.
@@ -130,7 +130,7 @@ Unit work:
 
 ### Phase 2 — Native units completion (3-4 weeks)
 
-**Deliverable:** the five MVP units named in ReSearch/31 §6 are all implemented, none stubbed. `specere init` composes them into a working first-run experience.
+**Deliverable:** the five MVP units named in [`docs/roadmap/31_specere_scaffolding.md`](roadmap/31_specere_scaffolding.md) §6 are all implemented, none stubbed. `specere init` composes them into a working first-run experience.
 
 Unit work:
 
@@ -242,7 +242,7 @@ Code surface:
 - FR-P6-004: `.specere/posterior.lock` format MUST be stable across minor version bumps; v1.0 → v1.1 reads old locks.
 - FR-P6-005: `specere status --check-persistence` MUST report whether posterior is current (last event applied) or stale (new events in store since last run).
 
-**Exit:** The "§6.3 experiment" from ReSearch's 10_research_paper.md, run in practice on ReSearch: two sessions on the same repo, starting one day apart, see the same posterior. This is the distinctive Repo-SLAM demonstration.
+**Exit:** The "§6.3 experiment" from [ReSearch's `10_research_paper.md`](https://github.com/laiadlotape/ReSearch/blob/main/docs/roadmap/10_research_paper.md), run in practice on ReSearch: two sessions on the same repo, starting one day apart, see the same posterior. This is the distinctive Repo-SLAM demonstration.
 
 **Release:** `v0.7.0`.
 
