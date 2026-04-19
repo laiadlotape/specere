@@ -3,8 +3,10 @@
 
 seed = 0
 steps = 120
-filter = "PerSpecHMM"
+rbpf_seed = 11
+rbpf_n_particles = 256
 specs = ["auth_login", "auth_logout", "auth_session", "billing_charge", "billing_refund", "user_create", "user_update", "api_health"]
+cluster = ["auth_session", "billing_charge", "billing_refund", "user_create", "user_update"]
 
 [supports]
 "auth_login" = ["src/auth/login.py", "src/common/utils.py"]
@@ -16,6 +18,9 @@ specs = ["auth_login", "auth_logout", "auth_session", "billing_charge", "billing
 "user_update" = ["src/user/update.py", "src/db/models.py"]
 "api_health" = ["src/api/health.py"]
 
+[coupling]
+edges = [["auth_session", "billing_charge"], ["auth_session", "billing_refund"], ["auth_session", "user_create"], ["auth_session", "user_update"]]
+
 [[trace]]
 kind = "write"
 files = ["src/billing/charge.py"]
@@ -98,7 +103,7 @@ spec_id = "user_update"
 outcome = "fail"
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "write"
 files = ["src/common/errors.py"]
@@ -160,7 +165,7 @@ spec_id = "api_health"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/user/update.py", "src/user/create.py"]
+files = ["src/user/create.py", "src/user/update.py"]
 [[trace]]
 kind = "write"
 files = ["src/db/conn.py", "src/db/models.py"]
@@ -201,7 +206,7 @@ spec_id = "auth_logout"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/user/update.py", "src/user/create.py"]
+files = ["src/user/create.py", "src/user/update.py"]
 [[trace]]
 kind = "test"
 spec_id = "user_create"
@@ -222,7 +227,7 @@ kind = "write"
 files = ["src/api/health.py"]
 [[trace]]
 kind = "write"
-files = ["src/user/update.py", "src/user/create.py"]
+files = ["src/user/create.py", "src/user/update.py"]
 [[trace]]
 kind = "write"
 files = ["src/db/conn.py"]
@@ -288,7 +293,7 @@ spec_id = "auth_logout"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -303,7 +308,7 @@ spec_id = "billing_refund"
 outcome = "fail"
 [[trace]]
 kind = "write"
-files = ["src/user/update.py", "src/user/create.py"]
+files = ["src/user/create.py", "src/user/update.py"]
 [[trace]]
 kind = "test"
 spec_id = "user_create"
@@ -332,7 +337,7 @@ spec_id = "auth_session"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/common/utils.py", "src/common/errors.py"]
+files = ["src/common/errors.py", "src/common/utils.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -379,10 +384,10 @@ kind = "write"
 files = ["src/api/health.py"]
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "write"
-files = ["src/common/utils.py", "src/common/errors.py"]
+files = ["src/common/errors.py", "src/common/utils.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -438,7 +443,7 @@ spec_id = "auth_session"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -469,7 +474,7 @@ spec_id = "billing_charge"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -501,7 +506,7 @@ kind = "write"
 files = ["src/db/conn.py", "src/db/models.py"]
 [[trace]]
 kind = "write"
-files = ["src/db/models.py", "src/db/conn.py"]
+files = ["src/db/conn.py", "src/db/models.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_session"
@@ -677,7 +682,7 @@ spec_id = "auth_session"
 outcome = "fail"
 [[trace]]
 kind = "write"
-files = ["src/user/update.py", "src/user/create.py"]
+files = ["src/user/create.py", "src/user/update.py"]
 [[trace]]
 kind = "test"
 spec_id = "user_create"
@@ -769,7 +774,7 @@ kind = "write"
 files = ["src/auth/session.py"]
 [[trace]]
 kind = "write"
-files = ["src/user/update.py", "src/user/create.py"]
+files = ["src/user/create.py", "src/user/update.py"]
 [[trace]]
 kind = "test"
 spec_id = "user_create"
@@ -790,7 +795,7 @@ spec_id = "user_create"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/common/utils.py", "src/common/errors.py"]
+files = ["src/common/errors.py", "src/common/utils.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -809,7 +814,7 @@ spec_id = "billing_charge"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/db/models.py", "src/db/conn.py"]
+files = ["src/db/conn.py", "src/db/models.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_session"
@@ -832,7 +837,7 @@ spec_id = "user_update"
 outcome = "fail"
 [[trace]]
 kind = "write"
-files = ["src/common/utils.py", "src/common/errors.py"]
+files = ["src/common/errors.py", "src/common/utils.py"]
 [[trace]]
 kind = "write"
 files = ["src/api/health.py"]
@@ -849,7 +854,7 @@ spec_id = "user_update"
 outcome = "fail"
 [[trace]]
 kind = "write"
-files = ["src/db/models.py", "src/db/conn.py"]
+files = ["src/db/conn.py", "src/db/models.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_session"
@@ -872,7 +877,7 @@ spec_id = "user_update"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/common/utils.py", "src/common/errors.py"]
+files = ["src/common/errors.py", "src/common/utils.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -887,13 +892,13 @@ spec_id = "auth_session"
 outcome = "pass"
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "write"
 files = ["src/user/update.py"]
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -940,7 +945,7 @@ spec_id = "api_health"
 outcome = "fail"
 [[trace]]
 kind = "write"
-files = ["src/db/models.py", "src/db/conn.py"]
+files = ["src/db/conn.py", "src/db/models.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_session"
@@ -1096,7 +1101,7 @@ spec_id = "api_health"
 outcome = "fail"
 [[trace]]
 kind = "write"
-files = ["src/auth/login.py", "src/auth/session.py"]
+files = ["src/auth/session.py", "src/auth/login.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -1168,7 +1173,7 @@ kind = "write"
 files = ["src/auth/login.py", "src/auth/logout.py"]
 [[trace]]
 kind = "write"
-files = ["src/common/utils.py", "src/common/errors.py"]
+files = ["src/common/errors.py", "src/common/utils.py"]
 [[trace]]
 kind = "test"
 spec_id = "auth_login"
@@ -1193,7 +1198,7 @@ kind = "test"
 spec_id = "api_health"
 outcome = "fail"
 
-[expected]
+[expected_per_spec_hmm]
 "auth_login" = { p_unk = 0.062334045972, p_sat = 0.170398345478, p_vio = 0.767267608550, gt = 2 }
 "auth_logout" = { p_unk = 0.046954689046, p_sat = 0.861237021086, p_vio = 0.091808289868, gt = 1 }
 "auth_session" = { p_unk = 0.034221323009, p_sat = 0.912066859053, p_vio = 0.053711817938, gt = 1 }
@@ -1202,3 +1207,23 @@ outcome = "fail"
 "user_create" = { p_unk = 0.104094282714, p_sat = 0.224506252660, p_vio = 0.671399464626, gt = 1 }
 "user_update" = { p_unk = 0.094741896551, p_sat = 0.673562136296, p_vio = 0.231695967154, gt = 1 }
 "api_health" = { p_unk = 0.053013442125, p_sat = 0.120570739678, p_vio = 0.826415818197, gt = 2 }
+
+[expected_factor_graph_bp]
+"auth_login" = { p_unk = 0.062334045978, p_sat = 0.170398345481, p_vio = 0.767267608542 }
+"auth_logout" = { p_unk = 0.046954689051, p_sat = 0.861237021077, p_vio = 0.091808289872 }
+"auth_session" = { p_unk = 0.034221323013, p_sat = 0.912066859046, p_vio = 0.053711817941 }
+"billing_charge" = { p_unk = 0.091794181643, p_sat = 0.192462236352, p_vio = 0.715743582005 }
+"billing_refund" = { p_unk = 0.091824333454, p_sat = 0.190752133979, p_vio = 0.717423532567 }
+"user_create" = { p_unk = 0.091826259173, p_sat = 0.188376624703, p_vio = 0.719797116124 }
+"user_update" = { p_unk = 0.092535155074, p_sat = 0.645929532895, p_vio = 0.261535312031 }
+"api_health" = { p_unk = 0.053013442128, p_sat = 0.120570739680, p_vio = 0.826415818192 }
+
+[expected_rbpf]
+"auth_login" = { p_unk = 0.062334045972, p_sat = 0.170398345478, p_vio = 0.767267608550 }
+"auth_logout" = { p_unk = 0.046954689046, p_sat = 0.861237021086, p_vio = 0.091808289868 }
+"auth_session" = { p_unk = 0.036799065421, p_sat = 0.916471962617, p_vio = 0.046728971963 }
+"billing_charge" = { p_unk = 0.126932063264, p_sat = 0.202686915888, p_vio = 0.670381020848 }
+"billing_refund" = { p_unk = 0.049604601006, p_sat = 0.254313443566, p_vio = 0.696081955428 }
+"user_create" = { p_unk = 0.067487419123, p_sat = 0.223714953271, p_vio = 0.708797627606 }
+"user_update" = { p_unk = 0.115744069015, p_sat = 0.603342918763, p_vio = 0.280913012221 }
+"api_health" = { p_unk = 0.053013442125, p_sat = 0.120570739678, p_vio = 0.826415818197 }
