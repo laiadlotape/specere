@@ -4,7 +4,9 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
-### Added (v1.0.5 prep — evidence-quality, FR-EQ-001)
+### Added (v1.0.5 prep — evidence-quality)
+
+- **Calibration struct + filter integration** (FR-EQ-002+005+007, [#89](https://github.com/laiadlotape/specere/pull/89)). New `Calibration { quality, alpha_sat, alpha_vio, alpha_unk }` in `specere-filter::state` computed from mutation kill rate × smell penalty. `CalibratedTestSensor` and `PerSpecTestSensor` wrap it. `run_filter_run` aggregates `mutation_result` + `test_smell_detected` events per spec and prints a per-spec calibration summary with `← low evidence` flags when `quality < 0.5`. Repos without evidence events see no change (prototype alphas, bit-identical to v1.0.4). Gate-A parity (FR-P4-002) anchored: `CalibratedTestSensor::new(Calibration::prototype())` produces numerically-identical log-likelihoods to the v1.0.4 `DefaultTestSensor`.
 - **`specere evaluate mutations` subcommand** ([#70](https://github.com/laiadlotape/specere/issues/70)). First slice of the evidence-quality upgrade (tracker #69). Wraps `cargo mutants --json` with per-spec scoping (`--scope FR-NNN` or `--in-diff <REF>`) and emits one `mutation_result` event per mutant into `.specere/events.jsonl`. Attribution uses the same directory-boundary semantics as the calibrate path (v1.0.1 fix — `src/auth` doesn't false-match `src/auth_helpers/*`). Tolerant JSON parser handles cargo-mutants v25–v27 schema drift via optional fields + polymorphic `scenario` (string for baseline, `{"Mutant": {...}}` for mutants). 10 new tests: 6 unit tests on the parser + 4 integration tests driving the CLI against fixture outcomes.json files (tests don't require `cargo-mutants` to be installed on CI). Hidden `--from-outcomes` flag enables fixture-driven testing.
 
 ## [1.0.4] - 2026-04-19
