@@ -382,8 +382,11 @@ pub fn run_lint_tests(ctx: &specere_core::Ctx, sensor_map: Option<PathBuf>) -> R
 
     for smell in &smells {
         // Attribute via intersection of smell.file with spec support sets.
+        // Normalise Windows backslashes — sensor-map `support` entries are
+        // always forward-slash, but `Path::to_string_lossy()` on Windows
+        // yields `src\auth\mod.rs` which wouldn't match `src/auth/`.
         let file_rel = smell.file.strip_prefix(ctx.repo()).unwrap_or(&smell.file);
-        let file_str = file_rel.to_string_lossy();
+        let file_str: String = file_rel.to_string_lossy().replace('\\', "/");
         let spec_id = specs
             .iter()
             .find(|s| {
