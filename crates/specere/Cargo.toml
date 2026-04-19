@@ -29,6 +29,10 @@ specere-filter.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 fs2.workspace = true
+syn.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+walkdir.workspace = true
 
 [dev-dependencies]
 # Integration tests in tests/fr_p1_*.rs drive the `specere` binary via

@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 mod evaluate;
+mod smells;
 
 /// SpecERE — Spec Entropy Regulation Engine.
 #[derive(Parser)]
@@ -236,6 +237,14 @@ enum LintKind {
     /// EARS-style lint over the active feature's spec.md (FR-P2-003).
     /// Advisory only — always exits 0.
     Ears,
+    /// Static analysis of test files for smells that degrade sensor
+    /// calibration (FR-EQ-003). Emits `test_smell_detected` events.
+    /// Advisory — always exits 0.
+    Tests {
+        /// Override the sensor-map path (default: `.specere/sensor-map.toml`).
+        #[arg(long)]
+        sensor_map: Option<PathBuf>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -275,6 +284,7 @@ fn main() -> Result<()> {
         Command::Init => specere_units::init(&ctx),
         Command::Lint { kind } => match kind {
             LintKind::Ears => specere_units::run_ears_lint(&ctx),
+            LintKind::Tests { sensor_map } => smells::run_lint_tests(&ctx, sensor_map),
         },
         Command::Status => specere_units::status(&ctx),
         Command::Verify => specere_units::verify(&ctx),
