@@ -162,6 +162,19 @@ enum CalibrateKind {
         #[arg(long, default_value_t = 3)]
         min_commits: usize,
     },
+    /// Fit per-spec motion matrices from the event store's
+    /// `mutation_result` + `test_outcome` history (FR-EQ-004). Emits a
+    /// TOML snippet with `[motion."<id>"]` + `[calibration."<id>"]`
+    /// tables for the caller to paste into `.specere/sensor-map.toml`.
+    MotionFromEvidence {
+        /// Override the sensor-map path (default: `.specere/sensor-map.toml`).
+        #[arg(long)]
+        sensor_map: Option<PathBuf>,
+        /// Minimum events per spec to emit a fit (else reports
+        /// `insufficient history`). Default 20.
+        #[arg(long, default_value_t = 20)]
+        min_events: u32,
+    },
 }
 
 #[derive(Subcommand)]
@@ -343,6 +356,10 @@ fn main() -> Result<()> {
                 max_commits,
                 min_commits,
             } => run_calibrate_from_git(&ctx, sensor_map, max_commits, min_commits),
+            CalibrateKind::MotionFromEvidence {
+                sensor_map,
+                min_events,
+            } => run_calibrate_motion_from_evidence(&ctx, sensor_map, min_events),
         },
         Command::Evaluate { kind } => match kind {
             EvaluateKind::Mutations {
@@ -871,6 +888,55 @@ fn run_calibrate_from_git(
             report.dropped_cycle_edges.len()
         );
     }
+    println!("{}", report.to_toml_snippet());
+    Ok(())
+}
+
+/// FR-EQ-004 — fit per-spec motion matrices from the event store.
+///
+/// Prints a TOML snippet of `[motion."<id>"]` + `[calibration."<id>"]`
+/// tables the caller pastes into `.specere/sensor-map.toml`. Specs with
+/// too few events emit an `insufficient history` comment instead.
+fn run_calibrate_motion_from_evidence(
+    ctx: &specere_core::Ctx,
+    sensor_map: Option<PathBuf>,
+    min_events: u32,
+) -> Result<()> {
+    let sensor_map_path = sensor_map.unwrap_or_else(|| ctx.repo().join(".specere/sensor-map.toml"));
+    let specs = specere_filter::load_specs(&sensor_map_path)?;
+    let spec_ids: Vec<String> = specs.iter().map(|s| s.id.clone()).collect();
+
+    let events = specere_telemetry::event_store::query(
+        ctx.repo(),
+        &specere_telemetry::event_store::QueryFilters::default(),
+    )?;
+    let inputs: Vec<specere_filter::FitInput> = events
+        .iter()
+        .filter_map(|e| {
+            let spec_id = e.attrs.get("spec_id").cloned()?;
+            let kind = e.attrs.get("event_kind").cloned().unwrap_or_default();
+            let outcome = e.attrs.get("outcome").cloned().unwrap_or_default();
+            Some(specere_filter::FitInput {
+                spec_id,
+                kind,
+                outcome,
+            })
+        })
+        .collect();
+
+    let report = specere_filter::fit_motion_from_evidence(&spec_ids, &inputs, min_events);
+
+    let mut fitted = 0usize;
+    let mut insufficient = 0usize;
+    for fit in report.per_spec.values() {
+        match fit {
+            specere_filter::SpecFit::Fitted { .. } => fitted += 1,
+            specere_filter::SpecFit::InsufficientHistory { .. } => insufficient += 1,
+        }
+    }
+    eprintln!(
+        "specere calibrate motion-from-evidence: {fitted} spec(s) fitted, {insufficient} with insufficient history (threshold: {min_events})"
+    );
     println!("{}", report.to_toml_snippet());
     Ok(())
 }
