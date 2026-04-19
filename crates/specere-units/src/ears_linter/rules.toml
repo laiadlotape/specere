@@ -10,16 +10,23 @@ schema_version = 1
 [[rules]]
 id = "ears-fr-prefix"
 severity = "warning"
-description = "Functional requirements SHOULD use a canonical FR-NNN (or FR-P<phase>-NNN) prefix"
+description = "Functional requirements SHOULD use a canonical FR prefix: FR-NNN, FR-P<phase>-NNN, or FR-<DOMAIN>-NNN"
 scope = "functional-requirements"
-pattern = '^\s*-\s*\*\*FR(-P\d+)?-\d{3,}\*\*:'
+# Widened in #65 to accept domain-prefixed IDs (FR-AUTH-001, FR-EDITOR-018 —
+# a very common convention). The optional `(-[A-Z][A-Z0-9]+)?` captures a
+# domain tag, keeping FR-NNN and FR-P<phase>-NNN backward-compatible. Digits
+# inside a domain (FR-OAUTH2-001) are allowed after the first letter.
+pattern = '^\s*-\s*\*\*FR(-P\d+)?(-[A-Z][A-Z0-9]+)?-\d{3,}\*\*:'
 
 [[rules]]
 id = "ears-must-should"
 severity = "warning"
-description = "FRs SHOULD contain MUST or SHOULD (capitalised) to express the requirement strength"
+description = "FRs SHOULD contain MUST, SHALL, SHOULD, or MAY to express the requirement strength"
 scope = "functional-requirements"
-pattern = '\b(MUST|SHOULD)\b'
+# Widened in #65 to include SHALL (canonical EARS imperative — Mavin et al.)
+# and MAY (canonical optional-permission verb). MUST and SHOULD retained for
+# compatibility with projects that prefer RFC-2119 phrasing.
+pattern = '\b(MUST|SHALL|SHOULD|MAY)\b'
 
 # NOTE: a prior `ears-condition-keyword` rule was removed in PR for issue #25.
 # It was dead code — pattern was the same as the `condition_only` gate, so it

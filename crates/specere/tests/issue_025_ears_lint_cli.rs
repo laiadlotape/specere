@@ -41,6 +41,88 @@ fn setup_foo_feature(repo: &TempRepo) {
 }
 
 #[test]
+fn lint_ears_accepts_ears_canonical_shall_and_domain_prefixed_ids() {
+    // Issue #65 regression — the default rules used to reject the
+    // EARS-textbook style (SHALL + FR-DOMAIN-NNN). Confirm a spec authored
+    // in the canonical style produces zero findings.
+    let repo = TempRepo::new();
+    std::fs::create_dir_all(repo.abs(".specere/lint")).unwrap();
+    repo.write(
+        ".specere/lint/ears.toml",
+        include_str!("../../specere-units/src/ears_linter/rules.toml"),
+    );
+    std::fs::create_dir_all(repo.abs(".specify")).unwrap();
+    repo.write(
+        ".specify/feature.json",
+        r#"{"feature_directory":"specs/001-ears-canonical"}"#,
+    );
+    std::fs::create_dir_all(repo.abs("specs/001-ears-canonical")).unwrap();
+    repo.write(
+        "specs/001-ears-canonical/spec.md",
+        "## Requirements\n\n### Functional Requirements\n\n\
+         - **FR-AUTH-001**: The system SHALL return HTTP 401 for unauthenticated requests.\n\
+         - **FR-AUTH-002**: When a token expires, the system SHALL refresh it automatically.\n\
+         - **FR-EDITOR-018**: The editor MAY cache the buffer.\n",
+    );
+
+    let out = repo.run_specere(&["lint", "ears"]).output().expect("spawn");
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    // No findings for SHALL / MAY / FR-<DOMAIN>-NNN — all three bullets are
+    // canonical EARS.
+    assert!(
+        !stdout.contains("ears-fr-prefix"),
+        "ears-fr-prefix fired on canonical FR-DOMAIN-NNN:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("ears-must-should"),
+        "ears-must-should fired on canonical SHALL/MAY:\n{stdout}"
+    );
+}
+
+#[test]
+fn lint_ears_tolerates_multibyte_utf8_in_fr_line() {
+    // Issue #63 regression — `truncate` used to slice at a byte offset
+    // landing inside a multi-byte codepoint (e.g. `≥`), panicking. Now
+    // char-boundary-safe.
+    let repo = TempRepo::new();
+    std::fs::create_dir_all(repo.abs(".specere/lint")).unwrap();
+    repo.write(
+        ".specere/lint/ears.toml",
+        include_str!("../../specere-units/src/ears_linter/rules.toml"),
+    );
+    std::fs::create_dir_all(repo.abs(".specify")).unwrap();
+    repo.write(
+        ".specify/feature.json",
+        r#"{"feature_directory":"specs/001-utf8"}"#,
+    );
+    std::fs::create_dir_all(repo.abs("specs/001-utf8")).unwrap();
+    // A pathologically long FR with multi-byte characters at positions that
+    // used to land inside the truncate window.
+    repo.write(
+        "specs/001-utf8/spec.md",
+        "## Requirements\n\n### Functional Requirements\n\n\
+         - **FR-001**: The system SHALL sample the pointer at ≥ 60 Hz → track continuously and accumulate a PathLayer — with sub-ms jitter.\n\
+         - **FR-002**: When concerns ≠ zero, THE system MUST emit an event within ≤ 10 ms.\n",
+    );
+
+    let out = repo.run_specere(&["lint", "ears"]).output().expect("spawn");
+    // Advisory lint: must not panic, must exit 0.
+    assert!(
+        out.status.success(),
+        "lint panicked on multi-byte input.\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // Confirm no panic leaked to stderr.
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("byte index") && !stderr.contains("char boundary"),
+        "panic message leaked to stderr:\n{stderr}"
+    );
+}
+
+#[test]
 fn lint_ears_accepts_feature_dir_alias() {
     // Issue #61 regression — the parser used to only accept the full
     // `feature_directory` key name. The self-dogfood guide's T-31 scenario

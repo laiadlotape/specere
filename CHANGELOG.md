@@ -4,6 +4,19 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-04-19
+
+Three bugs caught during the self-dogfood guide's extended run on real repos. All three now have regression tests and default-rule updates.
+
+### Fixed
+- **`specere lint ears` no longer panics on multi-byte UTF-8 in FR lines** (closes #63). `truncate` in `ears_lint.rs` previously sliced a `&str` at a byte offset that could land inside a UTF-8 codepoint (`≥`, `→`, `€`, em-dashes, smart-quotes — all common in technical specs). The panic leaked through the advisory-only contract (exit 0) and silently dropped every would-be finding for the affected spec. `truncate` now snaps `max` back to the nearest char boundary. 4 new `truncate` unit tests + 1 end-to-end `lint_ears_tolerates_multibyte_utf8_in_fr_line` integration test exercising `≥ → ≠ ≤ —`.
+- **`specere remove speckit` sweeps orphan `.claude/skills/speckit-git-*`** (closes #64). The upstream `specify integration uninstall` hook doesn't always enumerate the `speckit-git-{commit,feature,initialize,remote,validate}` skill dirs it installed, and they aren't recorded in specere's manifest (speckit is a wrapper unit). Remove now best-effort deletes any `speckit-git-*` directory under `.claude/skills/`. Deliberately does NOT sweep other `speckit-*` skills (`speckit-plan`, `speckit-implement`, …) — those belong to `claude-code-deploy` and are tracked in its manifest. New integration tests in `crates/specere/tests/issue_064_speckit_orphan_skills.rs` verify both the sweep and the preservation of non-speckit-git skills.
+- **Default EARS rules accept canonical `SHALL` / `MAY` and domain-prefixed FR IDs** (closes #65). Pre-fix: `ears-fr-prefix` rejected `FR-AUTH-001` / `FR-EDITOR-018` (common convention); `ears-must-should` rejected `SHALL` and `MAY` (canonical EARS imperatives per Mavin et al.). Post-fix: `ears-fr-prefix` pattern is `^\s*-\s*\*\*FR(-P\d+)?(-[A-Z][A-Z0-9]+)?-\d{3,}\*\*:`; `ears-must-should` is `\b(MUST|SHALL|SHOULD|MAY)\b`. New regression `lint_ears_accepts_ears_canonical_shall_and_domain_prefixed_ids`.
+
+### Test count
+
+188 workspace tests (180 → +8: 4 truncate units, 1 UTF-8 integration, 2 speckit-orphan integrations, 1 EARS-canonical regression).
+
 ## [1.0.3] - 2026-04-19
 
 Dogfood finding from the self-dogfood guide's T-31 scenario → real bug caught + fixed. Plus a new test plan for interactive agent integration and project-wide status refresh.

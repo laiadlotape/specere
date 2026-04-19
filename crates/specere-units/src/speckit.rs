@@ -204,6 +204,36 @@ impl AddUnit for Speckit {
                 tracing::warn!("CLAUDE.md present but does not look SpecKit-generated; preserving");
             }
         }
+
+        // 3) Sweep orphan skill directories the upstream SpecKit integration
+        //    drops but doesn't enumerate on uninstall. Issue #64 — observed:
+        //    `speckit-git-{commit,feature,initialize,remote,validate}`
+        //    remain after `specere remove speckit` because speckit is a
+        //    wrapper unit with "0 files, 0 markers" in our manifest, and
+        //    the upstream `specify integration uninstall` hook can miss them.
+        //
+        //    Limited to `speckit-git-*` so we DON'T touch the other
+        //    `speckit-*` skills that `claude-code-deploy` installs (`speckit-plan`,
+        //    `speckit-implement`, etc.) — those are that unit's responsibility
+        //    and have their own manifest tracking.
+        let claude_skills = ctx.repo().join(".claude").join("skills");
+        if claude_skills.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&claude_skills) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name();
+                    let name_str = name.to_string_lossy();
+                    if name_str.starts_with("speckit-git-") {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            let _ = std::fs::remove_dir_all(&path);
+                        } else {
+                            let _ = std::fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+        }
+
         tracing::info!(
             "speckit removed (upstream integration uninstall: {})",
             if integration_removed {
