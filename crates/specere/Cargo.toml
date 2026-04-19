@@ -26,6 +26,7 @@ specere-markers.workspace = true
 specere-units.workspace = true
 specere-telemetry.workspace = true
 specere-filter.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 fs2.workspace = true
 
