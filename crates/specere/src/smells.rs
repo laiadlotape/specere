@@ -94,8 +94,7 @@ pub fn analyse_repo(repo: &Path) -> Result<Vec<Smell>> {
             continue;
         }
         for entry in walkdir::WalkDir::new(&dir) {
-            let entry = entry
-                .with_context(|| format!("walk {}", dir.display()))?;
+            let entry = entry.with_context(|| format!("walk {}", dir.display()))?;
             if !entry.file_type().is_file() {
                 continue;
             }
@@ -163,10 +162,7 @@ impl SmellVisitor {
             return;
         }
         if let Some(smell) = detect_tautological_mac(mac) {
-            let fn_name = self
-                .current_fn
-                .clone()
-                .unwrap_or_else(|| "<anon>".into());
+            let fn_name = self.current_fn.clone().unwrap_or_else(|| "<anon>".into());
             let line = mac
                 .path
                 .segments
@@ -375,8 +371,7 @@ impl<'ast> Visit<'ast> for MockCounter {
 /// CLI entry — `specere lint tests`. Walks the repo, emits one
 /// `test_smell_detected` event per detected smell, prints a summary.
 pub fn run_lint_tests(ctx: &specere_core::Ctx, sensor_map: Option<PathBuf>) -> Result<()> {
-    let sensor_map_path =
-        sensor_map.unwrap_or_else(|| ctx.repo().join(".specere/sensor-map.toml"));
+    let sensor_map_path = sensor_map.unwrap_or_else(|| ctx.repo().join(".specere/sensor-map.toml"));
     // Load specs for path-based attribution; empty [specs] is OK (we'll
     // emit unattributed events).
     let specs = specere_filter::load_specs(&sensor_map_path).unwrap_or_default();
@@ -391,11 +386,13 @@ pub fn run_lint_tests(ctx: &specere_core::Ctx, sensor_map: Option<PathBuf>) -> R
         let file_str = file_rel.to_string_lossy();
         let spec_id = specs
             .iter()
-            .find(|s| s.support.iter().any(|sup| {
-                let bare = sup.trim_end_matches('/');
-                let dir = format!("{bare}/");
-                file_str == bare || file_str.starts_with(dir.as_str())
-            }))
+            .find(|s| {
+                s.support.iter().any(|sup| {
+                    let bare = sup.trim_end_matches('/');
+                    let dir = format!("{bare}/");
+                    file_str == bare || file_str.starts_with(dir.as_str())
+                })
+            })
             .map(|s| s.id.clone());
 
         let mut attrs = std::collections::BTreeMap::new();
@@ -466,7 +463,9 @@ mod tests {
         fn bad() { assert!(true); }
         "#;
         let smells = analyse_file(&path(), src);
-        assert!(smells.iter().any(|s| s.kind == SmellKind::TautologicalAssert));
+        assert!(smells
+            .iter()
+            .any(|s| s.kind == SmellKind::TautologicalAssert));
     }
 
     #[test]
@@ -530,7 +529,10 @@ mod tests {
         }
         "#;
         let smells = analyse_file(&path(), src);
-        assert!(smells.is_empty(), "non-#[test] fn should not be analysed: {smells:?}");
+        assert!(
+            smells.is_empty(),
+            "non-#[test] fn should not be analysed: {smells:?}"
+        );
     }
 
     #[test]
@@ -542,7 +544,9 @@ mod tests {
         }
         "#;
         let smells = analyse_file(&path(), src);
-        assert!(smells.iter().any(|s| s.kind == SmellKind::TautologicalAssert));
+        assert!(smells
+            .iter()
+            .any(|s| s.kind == SmellKind::TautologicalAssert));
     }
 
     #[test]

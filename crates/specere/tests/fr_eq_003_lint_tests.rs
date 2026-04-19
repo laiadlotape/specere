@@ -140,7 +140,10 @@ fn clean_repo_emits_no_events() {
         .run_specere(&["lint", "tests"])
         .output()
         .expect("spawn");
-    assert!(out.status.success(), "lint tests should succeed on clean repo");
+    assert!(
+        out.status.success(),
+        "lint tests should succeed on clean repo"
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("0 smell"),
