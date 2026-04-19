@@ -83,6 +83,11 @@ enum Command {
         /// `specify workflow run` subprocesses (issue #16).
         #[arg(long)]
         clean_orphans: bool,
+        /// Scan posterior + evidence calibration for specs where the filter
+        /// reports high confidence in SAT despite low-quality evidence —
+        /// write a review-queue entry for each (FR-EQ-006).
+        #[arg(long)]
+        suspicious: bool,
     },
     /// Record or query telemetry events. Issue #28 / FR-P3-004.
     Observe {
@@ -301,8 +306,13 @@ fn main() -> Result<()> {
         },
         Command::Status => specere_units::status(&ctx),
         Command::Verify => specere_units::verify(&ctx),
-        Command::Doctor { clean_orphans } => {
-            if clean_orphans {
+        Command::Doctor {
+            clean_orphans,
+            suspicious,
+        } => {
+            if suspicious {
+                run_doctor_suspicious(&ctx)
+            } else if clean_orphans {
                 match specere_units::clean_orphans(&ctx) {
                     Ok(0) => {
                         println!("No orphan .specify/ state detected.");
@@ -939,6 +949,172 @@ fn run_calibrate_motion_from_evidence(
     );
     println!("{}", report.to_toml_snippet());
     Ok(())
+}
+
+/// FR-EQ-006 — review-queue flagging of suspicious high-confidence SAT.
+///
+/// Reads `.specere/posterior.toml` and the event store's calibration.
+/// For each spec where `p_sat > suspicious_p_sat_min` (default 0.95) AND
+/// `quality < suspicious_quality_max` (default 0.50), appends a
+/// human-review entry to `.specere/review-queue.md`. Thresholds are
+/// configurable via `[review]` in sensor-map.toml. Never removes
+/// entries — manual review is the adjudication (constitution V).
+fn run_doctor_suspicious(ctx: &specere_core::Ctx) -> Result<()> {
+    let sensor_map_path = ctx.repo().join(".specere/sensor-map.toml");
+    let specs = specere_filter::load_specs(&sensor_map_path).unwrap_or_default();
+    let (p_sat_min, quality_max) = load_suspicious_thresholds(&sensor_map_path);
+
+    let posterior_path = specere_filter::Posterior::default_path(ctx.repo());
+    let posterior = specere_filter::Posterior::load_or_default(&posterior_path)
+        .context("load posterior.toml for --suspicious scan")?;
+    if posterior.entries.is_empty() {
+        println!(
+            "specere doctor --suspicious: posterior is empty — run `specere filter run` first"
+        );
+        return Ok(());
+    }
+
+    let all_events = specere_telemetry::event_store::query(
+        ctx.repo(),
+        &specere_telemetry::event_store::QueryFilters::default(),
+    )?;
+    let calibrations = compute_per_spec_calibrations(&specs, &all_events);
+
+    let today = specere_telemetry::event_store::now_rfc3339()
+        .split('T')
+        .next()
+        .unwrap_or("")
+        .to_string();
+
+    let mut flagged: Vec<String> = Vec::new();
+    for entry in &posterior.entries {
+        let cal = calibrations
+            .get(&entry.spec_id)
+            .copied()
+            .unwrap_or(specere_filter::Calibration::prototype());
+        if entry.p_sat > p_sat_min && cal.quality < quality_max {
+            let (kill, smells) = kill_and_smells(&entry.spec_id, &all_events);
+            flagged.push(format_review_entry(entry, &cal, kill, smells, &today));
+        }
+    }
+
+    if flagged.is_empty() {
+        println!(
+            "specere doctor --suspicious: no suspicious specs (p_sat > {p_sat_min:.2} ∧ quality < {quality_max:.2})"
+        );
+        return Ok(());
+    }
+
+    let queue_path = ctx.repo().join(".specere").join("review-queue.md");
+    if let Some(parent) = queue_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    let mut existing = std::fs::read_to_string(&queue_path).unwrap_or_default();
+    if !existing.is_empty() && !existing.ends_with("\n\n") {
+        if existing.ends_with('\n') {
+            existing.push('\n');
+        } else {
+            existing.push_str("\n\n");
+        }
+    }
+    for entry in &flagged {
+        existing.push_str(entry);
+        existing.push('\n');
+    }
+    std::fs::write(&queue_path, existing)
+        .with_context(|| format!("write {}", queue_path.display()))?;
+
+    println!(
+        "specere doctor --suspicious: flagged {} spec(s); appended to {}",
+        flagged.len(),
+        queue_path.display()
+    );
+    Ok(())
+}
+
+fn load_suspicious_thresholds(sensor_map_path: &std::path::Path) -> (f64, f64) {
+    const DEFAULT_P_SAT_MIN: f64 = 0.95;
+    const DEFAULT_QUALITY_MAX: f64 = 0.50;
+    let raw = match std::fs::read_to_string(sensor_map_path) {
+        Ok(s) => s,
+        Err(_) => return (DEFAULT_P_SAT_MIN, DEFAULT_QUALITY_MAX),
+    };
+    let val: toml::Value = match toml::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return (DEFAULT_P_SAT_MIN, DEFAULT_QUALITY_MAX),
+    };
+    let review = val.get("review").and_then(|v| v.as_table());
+    let p_sat_min = review
+        .and_then(|t| t.get("suspicious_p_sat_min"))
+        .and_then(|v| v.as_float())
+        .unwrap_or(DEFAULT_P_SAT_MIN);
+    let quality_max = review
+        .and_then(|t| t.get("suspicious_quality_max"))
+        .and_then(|v| v.as_float())
+        .unwrap_or(DEFAULT_QUALITY_MAX);
+    (p_sat_min, quality_max)
+}
+
+fn kill_and_smells(spec_id: &str, events: &[specere_telemetry::Event]) -> (Option<f64>, usize) {
+    let mut caught = 0u32;
+    let mut missed = 0u32;
+    let mut smell_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for e in events {
+        let kind = e.attrs.get("event_kind").map(String::as_str);
+        let sid = e.attrs.get("spec_id").map(String::as_str);
+        if sid != Some(spec_id) {
+            continue;
+        }
+        match kind {
+            Some("mutation_result") => {
+                match e.attrs.get("outcome").map(String::as_str).unwrap_or("") {
+                    "caught" => caught += 1,
+                    "missed" | "timeout" => missed += 1,
+                    _ => {}
+                }
+            }
+            Some("test_smell_detected") => {
+                let fn_name = e.attrs.get("test_fn").map(String::as_str).unwrap_or("");
+                let smell = e.attrs.get("smell_kind").map(String::as_str).unwrap_or("");
+                smell_keys.insert(format!("{fn_name}|{smell}"));
+            }
+            _ => {}
+        }
+    }
+    let kill = if caught + missed > 0 {
+        Some(caught as f64 / (caught + missed) as f64)
+    } else {
+        None
+    };
+    (kill, smell_keys.len())
+}
+
+fn format_review_entry(
+    entry: &specere_filter::Entry,
+    cal: &specere_filter::Calibration,
+    kill_rate: Option<f64>,
+    n_smells: usize,
+    today: &str,
+) -> String {
+    let kill_str = kill_rate
+        .map(|k| format!("{k:.2}"))
+        .unwrap_or_else(|| "n/a".to_string());
+    let smell_penalty = (1.0 - 0.15 * n_smells as f64).clamp(0.3, 1.0);
+    format!(
+        "## Suspicious high-confidence SAT — {sid} (auto-flagged {today})\n\
+         \n\
+         - **Posterior**: p_sat = {psat:.2}, p_vio = {pvio:.2}, p_unk = {punk:.2}\n\
+         - **Calibration**: quality = {q:.2} (mutation kill {k}, smell penalty {sp:.2})\n\
+         - **Recommendation**: Human sanity-check before trusting this SAT — either the test suite is too weak to discriminate, or smells are dragging calibration down.\n",
+        sid = entry.spec_id,
+        today = today,
+        psat = entry.p_sat,
+        pvio = entry.p_vio,
+        punk = entry.p_unk,
+        q = cal.quality,
+        k = kill_str,
+        sp = smell_penalty,
+    )
 }
 
 fn print_help_hint(e: &specere_core::Error) {
