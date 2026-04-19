@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+mod evaluate;
+
 /// SpecERE — Spec Entropy Regulation Engine.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -108,6 +110,38 @@ enum Command {
     Calibrate {
         #[command(subcommand)]
         kind: CalibrateKind,
+    },
+    /// Run external evaluators (mutation testing, property checkers) and
+    /// emit the results as evidence events. FR-EQ-001..005.
+    Evaluate {
+        #[command(subcommand)]
+        kind: EvaluateKind,
+    },
+}
+
+#[derive(Subcommand)]
+enum EvaluateKind {
+    /// Run `cargo-mutants` and emit one `mutation_result` event per mutant
+    /// into `.specere/events.jsonl`. Events carry `spec_id` attributed via
+    /// sensor-map support-set intersection. Advisory — a low kill rate is
+    /// recorded, not an error. FR-EQ-001.
+    Mutations {
+        /// Override the sensor-map path (default: `.specere/sensor-map.toml`).
+        #[arg(long)]
+        sensor_map: Option<PathBuf>,
+        /// Restrict mutation to files supporting this FR only.
+        #[arg(long, value_name = "FR-ID")]
+        scope: Option<String>,
+        /// Pass through to `cargo-mutants --in-diff <REF>` for PR-scoped runs.
+        #[arg(long)]
+        in_diff: Option<String>,
+        /// Parallelism. Forwarded to `cargo-mutants --jobs N`.
+        #[arg(long, default_value_t = 1)]
+        jobs: usize,
+        /// Test-only — parse this existing `outcomes.json` instead of running
+        /// `cargo-mutants`. The CLI otherwise always invokes the tool fresh.
+        #[arg(long, value_name = "PATH", hide = true)]
+        from_outcomes: Option<PathBuf>,
     },
 }
 
@@ -299,6 +333,15 @@ fn main() -> Result<()> {
                 max_commits,
                 min_commits,
             } => run_calibrate_from_git(&ctx, sensor_map, max_commits, min_commits),
+        },
+        Command::Evaluate { kind } => match kind {
+            EvaluateKind::Mutations {
+                sensor_map,
+                scope,
+                in_diff,
+                jobs,
+                from_outcomes,
+            } => evaluate::run_mutations(&ctx, sensor_map, scope, in_diff, jobs, from_outcomes),
         },
     };
 

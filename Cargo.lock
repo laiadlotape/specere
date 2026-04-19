@@ -1832,6 +1832,7 @@ dependencies = [
  "opentelemetry-proto",
  "predicates",
  "reqwest",
+ "serde",
  "serde_json",
  "sha2",
  "specere-core",
