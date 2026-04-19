@@ -2,7 +2,7 @@
 
 A human-walkable end-to-end test plan that installs `specere` onto a fresh clone of its own source tree, exercises every verb and subcommand, and uninstalls cleanly. Designed as a one-sitting smoke suite before cutting a release.
 
-**Target binary under test:** `specere` ≥ v1.0.1 (earlier versions will fail T-01 because the backwards-compat fixes from that release are required when the target repo was previously touched by pre-v0.5.0 builds).
+**Target binary under test:** `specere` ≥ v1.0.3 (T-31 requires the [issue #61](https://github.com/laiadlotape/specere/issues/61) fix to accept the `feature_dir` alias; earlier versions will fail T-31 with `could not parse feature_directory`).
 
 **Duration.** ~25 minutes the first time, ~10 minutes after.
 
@@ -22,13 +22,13 @@ If you're testing a local build, have the binary path ready:
 
 ```sh
 export BIN=$(realpath /path/to/specere/target/release/specere)
-$BIN --version                      # should print: specere 1.0.1 (or newer)
+$BIN --version                      # should print: specere 1.0.3 (or newer)
 ```
 
 If you're testing the installer-bundled binary, add it to `PATH` first:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/laiadlotape/specere/releases/download/v1.0.1/specere-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/laiadlotape/specere/releases/download/v1.0.3/specere-installer.sh | sh
 export BIN=$HOME/.cargo/bin/specere   # or wherever the installer placed it
 ```
 
@@ -520,7 +520,7 @@ cat > specs/999-smoke/spec.md <<'EOF'
 - FR-003: When X happens, THE system MUST do Y.
 EOF
 cat > .specify/feature.json <<'EOF'
-{"feature_dir": "specs/999-smoke"}
+{"feature_directory": "specs/999-smoke"}
 EOF
 $BIN lint ears
 ```
@@ -528,6 +528,8 @@ $BIN lint ears
 **Expected:** advisory findings for FR-002 (missing `THE SYSTEM`/`MUST`/`SHALL`), no fatal exit — `lint ears` always exits 0 per the advisory-only contract.
 
 Clean up: `rm -rf specs/999-smoke .specify/feature.json`.
+
+**Known issue — fixed in v1.0.3 ([#61](https://github.com/laiadlotape/specere/issues/61)).** On v1.0.2 and earlier this scenario erred with `could not parse feature_directory from .../feature.json` if the JSON used the shorter `feature_dir` key. v1.0.3's `parse_feature_directory` is serde_json-based and accepts either `feature_directory` (shown above) or `feature_dir` via `#[serde(alias)]`. If you're on v1.0.2 or earlier, use the full `feature_directory` key name.
 
 ---
 
@@ -668,7 +670,14 @@ rm -rf "$SANDBOX"
 - **`filter status` may print rows in a different order than the on-disk entries.** Entries in `posterior.toml` are always sorted by `spec_id` (for FR-P4-004 byte-stability). `filter status` then re-sorts them per `--sort`. If you diff posterior.toml bytes you'll see spec_id order; if you diff `filter status` output you'll see entropy-desc order.
 - **`filter-state::remove` preserves runtime-edited files** (posterior, sensor-map, events.sqlite, events.jsonl). This is intentional — the user may want to keep their history. Use `rm -rf .specere` if you genuinely want a clean slate.
 - **`specere remove claude-code-deploy --force`** leaves `.claude/skills/speckit-git-*` if they weren't installed by the current specere version. Older installs wrote fewer skills; `remove` only cleans what that install tracked in its manifest. Safe to leave or delete by hand.
-- **`specere init` on the upstream specere repo** will fail with `missing field unit_id` if the repo's committed `.specere/manifest.toml` predates the MarkerEntry schema. The Setup step above removes this manifest before init — if you're testing a real user-facing upgrade flow, the proper regression fix is to make `unit_id` optional on MarkerEntry (tracked as a follow-up; not blocking v1.0.1).
+- **`specere init` on the upstream specere repo** will fail with `missing field unit_id` if the repo's committed `.specere/manifest.toml` predates the MarkerEntry schema. The Setup step above removes this manifest before init — if you're testing a real user-facing upgrade flow, the proper regression fix is to make `unit_id` optional on MarkerEntry (tracked as a follow-up; not blocking current releases).
+
+## Observed run log
+
+| Version | Date | All 38 pass? | Notes |
+|---|---|---|---|
+| v1.0.2 | 2026-04-19 | 37/38 | T-31 surfaced issue #61 (feature.json parser rigid on key name). Fixed in v1.0.3. |
+| v1.0.3 | 2026-04-19 | anticipate 38/38 | #61 fixed; T-31 guide updated to use `feature_directory` and note the new `feature_dir` alias. |
 
 ## Appendix B — Cleanup between test runs
 
