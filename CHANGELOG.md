@@ -4,6 +4,21 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-04-19
+
+Dogfood finding from the self-dogfood guide's T-31 scenario → real bug caught + fixed. Plus a new test plan for interactive agent integration and project-wide status refresh.
+
+### Fixed
+- **`specere lint ears` feature.json parser hardened** (closes #61). Replaced the hand-rolled string search with proper `serde_json` deserialisation. The parser now accepts both the speckit convention (`feature_directory`) and a shorter `feature_dir` alias via `#[serde(alias)]`. Pre-fix, the `feature_dir` key errored with `could not parse feature_directory` — surfaced during the self-dogfood guide's T-31 execution. Same treatment applied to `specere-units::orphan::parse_feature_directory` for consistency. 2 new regression tests: `lint_ears_accepts_feature_dir_alias`, `lint_ears_rejects_malformed_feature_json`. Error messages now surface the full `serde_json` chain with line/column for malformed input.
+
+### Added
+- **`docs/test-plans/agentic-integration-plan.md`** — new human-walkable plan exercising specere transparently under a live Claude Code session. Covers hooks firing on all 7 `/speckit-*` verbs, span attrs contract, filter feedback loop, calibrate-then-refine cycle. 14-scenario checklist + 4 appendices (hook-wiring reference, debugging missing hooks, mid-test cleanup, known gaps).
+- **`docs/test-plans/self-dogfood-guide.md` — T-31 observation recorded** with a pointer to issue #61, plus a new "Observed run log" table tracking which versions pass which scenarios.
+
+### Changed
+- **`README.md` phase-status table refreshed** to reflect v1.0.3 shipped. All seven phases now marked ✅; the "not on crates.io" line points at the GitHub Release installer instead.
+- **`docs/upcoming.md` priority queue trimmed** to post-v1.0 polish items only: MarkerEntry backwards-compat, Phase 5 motion-matrix-fit tail, CLI RBPF routing, long spec-ID table alignment. Master-plan phase queue closed — v1.x is bug-fix + follow-ups.
+
 ## [1.0.2] - 2026-04-19
 
 Closes Phase 4 parity gap. FR-P4-002 now fully satisfied across all three filter paths.

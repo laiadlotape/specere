@@ -32,20 +32,28 @@ This uninstall-first design is SpecERE's core UX differentiator versus SpecKit, 
 
 ## Status
 
-**Pre-0.1.0 release** — `0.2.0-dev` on `main`. Phase 1 merged; v0.2.0 tag not yet cut (release infrastructure is the next spec). Not yet on crates.io.
+**v1.0.3 on `main`** — all seven master-plan phases shipped. `specere calibrate from-git` surfaces real architectural coupling on live repos. Full Gate-A parity with the ReSearch Python prototype (bit-identical for PerSpecHMM + FactorGraphBP; tail-MAP-within-2-pp for RBPF).
+
+Not on crates.io yet; install from the [GitHub Release](https://github.com/laiadlotape/specere/releases/latest) shell / powershell installer.
 
 | Phase | What ships | Status |
 |---|---|---|
-| Phase 0 — doc rectification       | README / CONTRIBUTING / CHANGELOG aligned to pivot           | ✅ Shipped (2026-04-18) |
-| Phase 1 — bugfix release `v0.2.0` | Drop `--no-git`, SHA-diff gate, first `after_implement` hook, marker-fenced `.gitignore`, bit-identical remove, parse-safety | ✅ Merged (PR #2, 2026-04-18) — 9 FRs, 37/37 tests green on Linux/macOS/Windows; v0.2.0 tag pending release-infra |
-| Phase 2 — native units            | All 5 MVP units implemented end-to-end                       | ✅ Shipped (2026-04-18) — PRs #19–#23; all 5 units real; `specere init` composes the full scaffold; 65/65 tests cross-platform |
-| Phase 3 — observe pipeline        | Embedded OTLP receiver + `specere-observe` workflow          | ✅ Shipped (2026-04-18) — PRs #32–#36 + #38; OTLP/HTTP + gRPC receivers + SQLite event store + 13 workflow-span hooks; FR-P3-001 through FR-P3-006 all closed. |
-| Phase 4 — filter engine           | Rust port of the ReSearch prototype's three Bayesian filters | ✅ Main track shipped (2026-04-18) — PRs #45–#48; `specere-filter` crate with PerSpecHMM + FactorGraphBP + RBPF + `specere filter run/status` CLI; 150/150 tests. FR-P4-001/003/004/006 closed; FR-P4-002 (Python parity) + FR-P4-005 (throughput) queued as follow-ups. |
-| Phase 5 — motion-model calibration| `specere calibrate from-git`                                 | ⏳ Next (see [`docs/upcoming.md`](docs/upcoming.md)) |
-| Phase 6 — cross-session persistence | Posterior survives across sessions                         | ⏳ Planned |
-| Phase 7 — v1.0.0 release          | Final tear-down-and-rebuild dogfood on ReSearch              | ⏳ Planned |
+| Phase 0 — doc rectification | README / CONTRIBUTING / CHANGELOG aligned to pivot | ✅ Shipped (2026-04-18) |
+| Phase 1 — bugfix release | Drop `--no-git`, SHA-diff gate, first `after_implement` hook, marker-fenced `.gitignore`, bit-identical remove, parse-safety | ✅ v0.2.0 (2026-04-18) — 9 FRs, 37/37 tests |
+| Phase 2 — native units | All 5 MVP units implemented end-to-end | ✅ Shipped (2026-04-18) — 5 units real; `specere init` composes the full scaffold; 65/65 tests |
+| Phase 3 — observe pipeline | Embedded OTLP receiver + `specere-observe` workflow | ✅ v0.4.0 (2026-04-18) — OTLP HTTP + gRPC + SQLite event store + 13 workflow-span hooks; FR-P3-001 through FR-P3-006 closed |
+| Phase 4 — filter engine | Rust port of the ReSearch prototype's three Bayesian filters | ✅ v0.4.0 / v0.4.0 follow-ups — PerSpecHMM + FactorGraphBP + RBPF + `specere filter run/status` CLI; FR-P4-001 through FR-P4-006 closed; Python-prototype parity bit-identical on Gate-A for PerSpecHMM + BP |
+| Phase 5 — motion-model calibration | `specere calibrate from-git` | ✅ v0.5.0 (partial) — coupling-edge suggester from git log co-modification; full motion-matrix fit deferred (needs test-history source) |
+| Phase 6 — cross-session persistence | Posterior survives across sessions | ✅ v1.0.0 — posterior bit-identical across process restarts; FR-P6 regression caught + fixed |
+| Phase 7 — v1.0.0 release | Final tear-down-and-rebuild dogfood on ReSearch | ✅ v1.0.0 (2026-04-18); v1.0.1 calibrate path-prefix fix; v1.0.2 RBPF/BP parity closes #42; v1.0.3 ears-lint parser hardening closes #61 |
 
-See [`CHANGELOG.md`](./CHANGELOG.md) for release notes, [`docs/specere_v1.md`](docs/specere_v1.md) for the 36-FR / 7-SC master plan, and [`docs/upcoming.md`](docs/upcoming.md) for the queued-next specs.
+**Release:** current stable is **v1.0.3**. See [CHANGELOG.md](./CHANGELOG.md) for the full history.
+
+**Test plans for contributors:**
+- [`docs/test-plans/self-dogfood-guide.md`](docs/test-plans/self-dogfood-guide.md) — 38-scenario CLI-driven smoke suite, ~25 min.
+- [`docs/test-plans/agentic-integration-plan.md`](docs/test-plans/agentic-integration-plan.md) — interactive Claude Code session validating hooks + filter end-to-end.
+
+See [`docs/specere_v1.md`](docs/specere_v1.md) for the 36-FR / 7-SC master plan.
 
 ## Design documents
 

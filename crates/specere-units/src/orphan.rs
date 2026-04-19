@@ -89,16 +89,17 @@ pub fn clean(repo: &Path, state: &OrphanState) -> std::io::Result<()> {
 }
 
 fn parse_feature_directory(raw: &str) -> Option<String> {
-    // Dependency-free parse: look for `"feature_directory":"<value>"`.
-    let key = "\"feature_directory\"";
-    let start = raw.find(key)? + key.len();
-    let rest = &raw[start..];
-    let colon = rest.find(':')?;
-    let after_colon = &rest[colon + 1..];
-    let quote1 = after_colon.find('"')?;
-    let after_q1 = &after_colon[quote1 + 1..];
-    let quote2 = after_q1.find('"')?;
-    Some(after_q1[..quote2].to_string())
+    // Proper JSON parse via serde_json. Accepts `feature_directory` (speckit
+    // convention) or `feature_dir` (shorter alias). Issue #61.
+    #[derive(serde::Deserialize)]
+    struct FeatureJson {
+        #[serde(alias = "feature_dir")]
+        feature_directory: String,
+    }
+    serde_json::from_str::<FeatureJson>(raw)
+        .ok()
+        .map(|p| p.feature_directory)
+        .filter(|s| !s.trim().is_empty())
 }
 
 fn spec_md_is_template(path: &Path) -> bool {

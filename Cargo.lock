@@ -1822,7 +1822,7 @@ dependencies = [
 
 [[package]]
 name = "specere"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1850,7 +1850,7 @@ dependencies = [
 
 [[package]]
 name = "specere-core"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "serde",
@@ -1861,7 +1861,7 @@ dependencies = [
 
 [[package]]
 name = "specere-filter"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "approx",
@@ -1874,7 +1874,7 @@ dependencies = [
 
 [[package]]
 name = "specere-manifest"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "hex",
@@ -1888,7 +1888,7 @@ dependencies = [
 
 [[package]]
 name = "specere-markers"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "serde_yaml",
@@ -1897,7 +1897,7 @@ dependencies = [
 
 [[package]]
 name = "specere-telemetry"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
@@ -1920,7 +1920,7 @@ dependencies = [
 
 [[package]]
 name = "specere-units"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "hex",

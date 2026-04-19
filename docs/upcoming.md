@@ -6,21 +6,31 @@
 
 ## Priority queue (highest first)
 
-### 1. `phase-4-follow-ups` — FR-P4-002 Python parity + FR-P4-005 throughput
+**Nothing blocking a release.** All seven master-plan phases shipped through v1.0.3. The items below are polish-level follow-ups.
 
-- **Why it's next.** Phase 4 main track landed but deliberately deferred two FRs: FR-P4-002 (< 2 pp tail-MAP parity with `prototype/mini_specs/filter.py` on Gate-A) and FR-P4-005 (≥ 1000 events/s throughput smoke). Both need a one-time Gate-A fixture export from the Python prototype, plus a 10k-event `#[ignore]`-gated benchmark test.
-- **Deliverables.** Export script at `scripts/export_gate_a_posterior.py` writing a committed TOML fixture under `crates/specere-filter/tests/fixtures/gate_a/`. Parity test driver at `crates/specere-filter/tests/gate_a_parity.rs` that loads the fixture and asserts `abs(rust_belief - py_belief) < 0.02` row-wise. Throughput test at `crates/specere/tests/fr_p4_005_throughput.rs` gated on `--ignored`.
-- **Phase mapping.** `docs/specere_v1.md §5.P4` FR-P4-002 + FR-P4-005.
-- **Workflow.** Single PR after filing an issue per `docs/contributing-via-issues.md`.
+### 1. MarkerEntry schema backwards-compat
 
-### 2. `phase-5-motion-calibration` — calibrate transition matrices from git history
+- **Why.** The specere repo's own committed `.specere/manifest.toml` uses an early pre-`unit_id` MarkerEntry schema. `specere status` / `verify` on a fresh clone of the upstream repo errors with `missing field unit_id`. The self-dogfood guide's Setup block works around this by deleting `.specere/` first — but a real user upgrading from a very early SpecERE install would also hit it.
+- **Fix.** `#[serde(default)]` on `MarkerEntry.unit_id`; infer from the containing `[[units]].unit_id` during deserialisation.
+- **Scope.** Small — ~20 LoC in `specere-core` + a regression test that loads the old-schema manifest cleanly.
 
-- **Why.** Phase 4 uses the prototype's verbatim `Motion` defaults; Phase 5 learns them per-spec from the repo's commit history. `specere calibrate from-git` walks git log, reconstructs (diff, test-delta) pairs, and fits `t_good`/`t_bad` per spec.
-- **Phase mapping.** `docs/specere_v1.md §5.P5`.
+### 2. Motion-matrix fit from `(diff, test-delta)` pairs (Phase 5 tail)
+
+- **Why.** v0.5.0 shipped the coupling-edge suggester half of Phase 5; the motion-matrix fit half was deferred because it needs a durable per-commit test-history source (CI run records, not just event JSONL).
+- **Blocker.** No CI-result ingestion yet. A new `specere calibrate from-ci <path-to-junit.xml>` subcommand would unlock this.
+
+### 3. RBPF CLI routing
+
+- **Why.** Library supports it; CLI picks PerSpecHMM or FactorGraphBP only. Users with cyclic coupling graphs get a "DAG required" error from the loader rather than auto-routing to RBPF.
+- **Fix.** Read a `[rbpf]` section from sensor-map.toml with cluster + particle config, branch `run_filter_run` accordingly.
+
+### 4. Long spec-ID table alignment
+
+- Cosmetic — table column width fixed at 11 chars; JSON output is the programmatic path. Noted in self-dogfood phase-4 manual-test report M-16.
 
 ## Beyond the immediate queue
 
-Phases 6–7 (cross-session persistence, v1.0.0 dogfood) remain as in the master plan.
+Nothing in the master plan is open. v1.x is bug-fix + follow-ups only; v2.0 would be a deliberate schema-breaking re-plan.
 
 ## Recently closed
 

@@ -59,9 +59,9 @@ pub fn run(repo: &Path) -> anyhow::Result<LintOutcome> {
     }
 
     let feat_raw = std::fs::read_to_string(&feature_json)?;
-    let feature_dir_rel = parse_feature_directory(&feat_raw).ok_or_else(|| {
+    let feature_dir_rel = parse_feature_directory(&feat_raw).map_err(|e| {
         anyhow::anyhow!(
-            "could not parse feature_directory from {}",
+            "parsing {}: {e} — expected a JSON object with key `feature_directory` (or alias `feature_dir`)",
             feature_json.display()
         )
     })?;
@@ -186,16 +186,23 @@ fn extract_fr_bullets(spec: &str) -> Vec<String> {
     bullets
 }
 
-fn parse_feature_directory(raw: &str) -> Option<String> {
-    let key = "\"feature_directory\"";
-    let start = raw.find(key)? + key.len();
-    let rest = &raw[start..];
-    let colon = rest.find(':')?;
-    let after_colon = &rest[colon + 1..];
-    let quote1 = after_colon.find('"')?;
-    let after_q1 = &after_colon[quote1 + 1..];
-    let quote2 = after_q1.find('"')?;
-    Some(after_q1[..quote2].to_string())
+/// Parse `.specify/feature.json`. Accepts `feature_directory` (the speckit
+/// convention) or the shorter `feature_dir` alias (what hook authors
+/// commonly reach for). Issue #61 — previously a hand-rolled string search
+/// that was both fragile (broke on any JSON whitespace reshuffle) and
+/// rigid (only the exact key name would match).
+fn parse_feature_directory(raw: &str) -> anyhow::Result<String> {
+    #[derive(serde::Deserialize)]
+    struct FeatureJson {
+        #[serde(alias = "feature_dir")]
+        feature_directory: String,
+    }
+    let parsed: FeatureJson =
+        serde_json::from_str(raw).map_err(|e| anyhow::anyhow!("JSON parse error: {e}"))?;
+    if parsed.feature_directory.trim().is_empty() {
+        anyhow::bail!("`feature_directory` is empty");
+    }
+    Ok(parsed.feature_directory)
 }
 
 fn truncate(s: &str, max: usize) -> String {
