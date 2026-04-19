@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 mod evaluate;
+mod harness;
 mod smells;
 
 /// SpecERE — Spec Entropy Regulation Engine.
@@ -122,6 +123,26 @@ enum Command {
     Evaluate {
         #[command(subcommand)]
         kind: EvaluateKind,
+    },
+    /// Harness manager & inspector — enumerate, categorise, and relate
+    /// test/bench/fuzz/workflow files. FR-HM-001..085.
+    Harness {
+        #[command(subcommand)]
+        kind: HarnessKind,
+    },
+}
+
+#[derive(Subcommand)]
+enum HarnessKind {
+    /// Walk the repo, classify every harness file into one of nine
+    /// categories, extract test names, and emit direct-use edges parsed
+    /// from `rustc --emit=dep-info` output. Writes
+    /// `.specere/harness-graph.toml`. FR-HM-001..004.
+    Scan {
+        /// Output format for stdout summary. The TOML file is always
+        /// written; this flag controls what the CLI prints.
+        #[arg(long, default_value = "summary")]
+        format: String,
     },
 }
 
@@ -379,6 +400,9 @@ fn main() -> Result<()> {
                 jobs,
                 from_outcomes,
             } => evaluate::run_mutations(&ctx, sensor_map, scope, in_diff, jobs, from_outcomes),
+        },
+        Command::Harness { kind } => match kind {
+            HarnessKind::Scan { format } => harness::run_scan(&ctx, &format),
         },
     };
 
