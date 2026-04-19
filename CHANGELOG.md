@@ -4,6 +4,11 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (v1.0.2 prep)
+- **FactorGraphBP Gate-A parity** (closes #42). `crates/specere-filter/tests/gate_a_parity.rs::rust_factor_graph_bp_matches_gate_a_fixture_within_2pp` replays the fixture trace through Rust BP and asserts per-cell agreement with the Python prototype's `FactorGraphBP.all_marginals()`. Observed max cell diff: **0.000000** (bit-identical).
+- **RBPF Gate-A tail-MAP parity** (closes #42 remainder). `rust_rbpf_matches_gate_a_fixture_tail_map_within_2pp` asserts Rust RBPF's tail-MAP accuracy vs ground truth matches the prototype's within 2 pp (both are 5/8 on the Gate-A fixture). Per-cell RBPF probabilities diverge by more than 2 pp across languages because NumPy `default_rng` and Rust `StdRng` produce different uniform sequences from matched seeds — the divergence is PRNG drift, not algorithmic. FR-P4-002's 2 pp bound is a tail-MAP bound (what the spec actually says), not a per-cell bound.
+- **`scripts/export_gate_a_posterior.py` extended** to dump all three filter posteriors (`expected_per_spec_hmm`, `expected_factor_graph_bp`, `expected_rbpf`) on a shared 324-event trace. Fixture now also embeds `[coupling]` and `cluster` so Rust replays identical topology.
+
 ## [1.0.1] - 2026-04-18
 
 Depth-audit release for `specere calibrate from-git`. One correctness bug fixed + two UX improvements. See `docs/phase5-calibrate-audit.md` for the full 20-scenario traceability.
