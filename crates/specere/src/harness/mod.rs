@@ -21,6 +21,7 @@
 pub mod classify;
 pub mod dep_info;
 pub mod node;
+pub mod provenance;
 pub mod scan;
 
 use std::path::PathBuf;
@@ -76,6 +77,43 @@ pub fn run_scan(ctx: &specere_core::Ctx, format: &str) -> Result<()> {
 
 fn output_path(repo: &std::path::Path) -> PathBuf {
     repo.join(".specere").join("harness-graph.toml")
+}
+
+/// CLI entry — `specere harness provenance`. Reads the existing
+/// `.specere/harness-graph.toml`, enriches every node with a provenance
+/// record, and writes the result back. Prints a terse summary of
+/// span-attributed + git-attributed + divergence-detected counts.
+pub fn run_provenance(ctx: &specere_core::Ctx) -> Result<()> {
+    let repo = ctx.repo();
+    let out_path = output_path(repo);
+    let mut graph = node::HarnessGraph::load_or_default(&out_path)
+        .with_context(|| format!("read {}", out_path.display()))?;
+    if graph.nodes.is_empty() {
+        println!(
+            "specere harness provenance: no harness-graph.toml found — run `specere harness scan` first"
+        );
+        return Ok(());
+    }
+    let report = provenance::enrich(&mut graph, repo)
+        .with_context(|| format!("enrich {} provenance", repo.display()))?;
+    graph
+        .write_atomic(&out_path)
+        .with_context(|| format!("write {}", out_path.display()))?;
+
+    println!(
+        "specere harness provenance: enriched {}/{} node(s); {} via workflow span, {} via git log",
+        report.total_enriched,
+        graph.nodes.len(),
+        report.span_attributed,
+        report.git_attributed,
+    );
+    if report.divergence_detected > 0 {
+        println!(
+            "  {} file(s) flagged: agent-created, human-modified (advisory — no block)",
+            report.divergence_detected
+        );
+    }
+    Ok(())
 }
 
 fn print_summary(graph: &node::HarnessGraph) {

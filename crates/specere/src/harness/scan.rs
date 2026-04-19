@@ -45,6 +45,7 @@ pub fn scan_repo(repo: &Path) -> Result<Vec<HarnessFile>> {
                         category_confidence: c.confidence,
                         crate_name: None,
                         test_names: c.test_names,
+                        provenance: None,
                     });
                     seen.insert(rel);
                 }
@@ -121,6 +122,7 @@ fn walk_dir(
             category_confidence: c.confidence,
             crate_name,
             test_names: c.test_names,
+            provenance: None,
         });
         seen.insert(rel);
     }

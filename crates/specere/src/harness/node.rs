@@ -77,6 +77,44 @@ pub struct HarnessFile {
     /// Extracted `#[test]` / `#[bench]` / `proptest!{}` / `fuzz_target!` names.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub test_names: Vec<String>,
+    /// Populated by `specere harness provenance` (S2). `None` on first scan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Provenance>,
+}
+
+/// Who/what created this file, and when. Dual fields handle the common
+/// case of an agent-authored-file committed by a human.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct Provenance {
+    /// Workflow-span event that first claimed `files_created` on this file
+    /// (or `files_touched` without a prior span, as a fallback).
+    /// Empty when only git-log attribution is available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_span_id: Option<String>,
+    /// `specere.workflow_step` attribute of the claiming span, e.g.
+    /// `implement`, `plan`, `specify`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_verb: Option<String>,
+    /// `gen_ai.system` from the claiming span (e.g. `claude-code`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_agent: Option<String>,
+    /// First FR-id from the claiming span's `specere.fr_ids` attr.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_spec: Option<String>,
+    /// Git commit SHA that introduced the file (`git log --follow --diff-filter=A`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_commit: Option<String>,
+    /// Human committer email from the introducing commit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_human: Option<String>,
+    /// ISO-8601 creation timestamp (RFC3339). Source is either the claiming
+    /// span or the introducing commit's author date.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    /// When `true`, the file has human-authored lines that materially
+    /// diverge from agent-authored (see FR-HM-012).
+    #[serde(default)]
+    pub divergence_detected: bool,
 }
 
 /// Direct-use edge produced by parsing a `.d` file (FR-HM-003).
@@ -183,6 +221,7 @@ mod tests {
                 category_confidence: 1.0,
                 crate_name: Some("specere".into()),
                 test_names: vec!["test_a".into(), "test_b".into()],
+                provenance: None,
             }],
             edges: vec![],
         };
@@ -203,6 +242,7 @@ mod tests {
                 category_confidence: 1.0,
                 crate_name: None,
                 test_names: Vec::new(),
+                provenance: None,
             })
             .collect();
         let mut g1 = HarnessGraph {

@@ -192,6 +192,7 @@ mod tests {
             category_confidence: 1.0,
             crate_name: None,
             test_names: Vec::new(),
+            provenance: None,
         }
     }
 
