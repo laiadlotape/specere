@@ -1,14 +1,19 @@
 # Evidence-quality execution plan (v1.0.5 → v1.1.0)
 
-**Status.** Drafted 2026-04-19. Scope + direction approved via interactive questionnaire on `docs/proposals/v2-evidence-quality.md`. No code touched yet — this plan is what lands first, reviewed, then implementation follows.
+**Status.** Drafted 2026-04-19. Scope + direction approved via interactive questionnaire on `docs/proposals/v2-evidence-quality.md`.
+
+**v1.0.5 landed 2026-04-19/20**: FR-EQ-001 (PR #88), FR-EQ-002+005+007 (PR #89), FR-EQ-003 (PR #90), FR-EQ-004 (PR #91), FR-EQ-006 (PR #92). All on main. Release tag + CHANGELOG cut deferred until v1.0.6 or v1.1.0 ships alongside (single release with combined notes is less churn).
+
+**v1.0.6 and v1.1.0 remain pending** — see §2 + §3. Current post-v1.0.5 work has pivoted to the v3 Harness Manager proposal (`docs/proposals/v3-harness-manager.md`); the user will decide whether bug-tracker (v1.0.6) or harness manager (v1.2.0) ships next.
 
 **Release shape.**
 
-| Release | Slice | Scope | FRs |
-|---|---|---|---|
-| **v1.0.5** | Mutation-calibrated sensors + test-smell detector + motion-matrix-fit + suspicious-SAT review queue | ~900 LoC, no external APIs or paid services | FR-EQ-001 … FR-EQ-007 |
-| **v1.0.6** | Bug-tracker bridge (GitHub + Gitea) | ~600 LoC, requires credentials, light LLM spend for triage (embeddings) | FR-EQ-010 … FR-EQ-013 |
-| **v1.1.0** | LLM adversary agent with hard $20/mo budget | ~800 LoC + ongoing LLM spend | FR-EQ-020 … FR-EQ-024 |
+| Release | Slice | Scope | FRs | Status |
+|---|---|---|---|---|
+| **v1.0.5** | Mutation-calibrated sensors + test-smell detector + motion-matrix-fit + suspicious-SAT review queue | ~900 LoC, no external APIs or paid services | FR-EQ-001 … FR-EQ-007 | ✅ **Landed on main** |
+| **v1.0.6** | Bug-tracker bridge (GitHub + Gitea) | ~600 LoC, requires credentials, light LLM spend for triage (embeddings) | FR-EQ-010 … FR-EQ-013 | ⏸ Deferred pending user direction |
+| **v1.1.0** | LLM adversary agent with hard $20/mo budget | ~800 LoC + ongoing LLM spend | FR-EQ-020 … FR-EQ-024 | ⏸ Deferred pending user direction |
+| **v1.2.0+** | Harness manager + inspector (new proposal) | ~1200 LoC for slices S1–S3 | FR-HM-NNN (not yet numbered) | 📝 Proposal under review (PR #93) |
 
 Each release is patch-compatible except **v1.1.0** which introduces a new CLI verb surface and bumps the minor. Patches only add event kinds + channels; the filter's public interface is unchanged.
 
