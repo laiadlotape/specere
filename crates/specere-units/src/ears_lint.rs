@@ -205,10 +205,66 @@ fn parse_feature_directory(raw: &str) -> anyhow::Result<String> {
     Ok(parsed.feature_directory)
 }
 
+/// Truncate a string to at most `max` BYTES, snapping to the nearest char
+/// boundary at or below `max` so we never slice mid-codepoint. Appends `…`
+/// when truncation actually happened.
+///
+/// Issue #63: the previous `&s[..max]` slice panicked on multi-byte UTF-8
+/// (`≥`, `→`, `€`, smart-quotes, em-dashes) because `max` landed inside a
+/// codepoint. Common in technical specs.
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max])
+        return s.to_string();
+    }
+    let mut boundary = max;
+    while boundary > 0 && !s.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    format!("{}…", &s[..boundary])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_under_max_is_noop() {
+        assert_eq!(truncate("short", 10), "short");
+    }
+
+    #[test]
+    fn truncate_at_char_boundary_snaps_ascii() {
+        // "hello world" → max=5 gives "hello…"
+        let out = truncate("hello world", 5);
+        assert_eq!(out, "hello…");
+    }
+
+    #[test]
+    fn truncate_snaps_to_char_boundary_on_multibyte() {
+        // Issue #63 repro — `≥` is 3 bytes (e2 89 a5). Any max landing inside
+        // those 3 bytes must snap back to the byte before the char.
+        let s = "rate ≥ 60 Hz sustained";
+        // Try several `max` values that would have panicked pre-fix.
+        for bad in [6, 7] {
+            let out = truncate(s, bad);
+            // Must not panic and must end with the ellipsis marker.
+            assert!(out.ends_with('…'), "output should signal truncation: {out}");
+            // Must be a valid UTF-8 string — `to_string()` above already
+            // enforces this, but confirm semantically: the output should NOT
+            // contain the full `≥` (truncation happens before it).
+            assert!(
+                !out.contains('≥'),
+                "output should have truncated before the multi-byte char: {out}"
+            );
+        }
+    }
+
+    #[test]
+    fn truncate_preserves_multibyte_chars_when_boundary_permits() {
+        let s = "a≥b"; // bytes: 1 + 3 + 1 = 5
+                       // max=4 snaps to byte 4 which IS a char boundary (start of 'b'),
+                       // so the output keeps `≥` and truncates before `b`.
+        let out = truncate(s, 4);
+        assert_eq!(out, "a≥…");
     }
 }
