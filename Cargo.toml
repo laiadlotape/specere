@@ -49,6 +49,9 @@ tokio-stream = { version = "0.1", features = ["net"] }
 ndarray = "0.16"
 rand = "0.8"
 fs2 = "0.4"
+syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+quote = "1"
 
 specere-core = { path = "crates/specere-core", version = "1.0.4" }
 specere-units = { path = "crates/specere-units", version = "1.0.4" }

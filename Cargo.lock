@@ -1831,6 +1831,8 @@ dependencies = [
  "hex",
  "opentelemetry-proto",
  "predicates",
+ "proc-macro2",
+ "quote",
  "reqwest",
  "serde",
  "serde_json",
@@ -1841,12 +1843,14 @@ dependencies = [
  "specere-markers",
  "specere-telemetry",
  "specere-units",
+ "syn",
  "tempfile",
  "tokio",
  "toml",
  "tonic",
  "tracing",
  "tracing-subscriber",
+ "walkdir",
 ]
 
 [[package]]
