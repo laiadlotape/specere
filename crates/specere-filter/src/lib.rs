@@ -35,4 +35,4 @@ pub use motion::Motion;
 pub use posterior::{Entry, Posterior};
 pub use rbpf::RBPF;
 pub use specs::load_specs;
-pub use state::{Belief, Status, TestSensor};
+pub use state::{Belief, CalibratedTestSensor, Calibration, PerSpecTestSensor, Status, TestSensor};

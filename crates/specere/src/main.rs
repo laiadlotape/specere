@@ -543,7 +543,20 @@ fn run_filter_run(
         hmm.set_belief(&entry.spec_id, &[entry.p_unk, entry.p_sat, entry.p_vio]);
     }
 
-    let sensor = specere_filter::DefaultTestSensor;
+    // FR-EQ-005 — compute per-spec calibration from aggregated mutation +
+    // smell events across ALL events (not just new ones), then build a
+    // PerSpecTestSensor keyed by spec_id. At quality=1.0 for every spec,
+    // the filter's numerical output is bit-identical to v1.0.4 — so
+    // repos that don't run `specere evaluate mutations` see no change.
+    let all_events_for_calibration = specere_telemetry::event_store::query(
+        ctx.repo(),
+        &specere_telemetry::event_store::QueryFilters::default(),
+    )?;
+    let calibrations = compute_per_spec_calibrations(&specs, &all_events_for_calibration);
+    let mut sensor = specere_filter::PerSpecTestSensor::new();
+    for (sid, cal) in &calibrations {
+        sensor.insert(sid, *cal);
+    }
     let mut processed = 0usize;
     let mut skipped = 0usize;
     // Cursor advances to the **max** observed ts, not the last-processed one —
@@ -598,7 +611,92 @@ fn run_filter_run(
         "specere filter: processed {processed} event(s), skipped {skipped}; cursor -> {}",
         out.cursor.as_deref().unwrap_or("<unchanged>")
     );
+    // FR-EQ-005 — print calibration summary. Only shows specs that have
+    // any non-default calibration (i.e., evidence events were processed).
+    // Suppressed entirely when every spec is at q=1.0 to avoid noise on
+    // v1.0.4-style repos.
+    let non_default: Vec<_> = specs
+        .iter()
+        .filter_map(|s| {
+            calibrations
+                .get(&s.id)
+                .filter(|c| (c.quality - 1.0).abs() > 1e-9)
+                .map(|c| (s.id.clone(), *c))
+        })
+        .collect();
+    if !non_default.is_empty() {
+        println!("  calibration (per spec, from mutation + smell evidence):");
+        for (sid, c) in &non_default {
+            let suspicious = if c.quality < 0.5 {
+                " ← low evidence"
+            } else {
+                ""
+            };
+            println!(
+                "    {:<24} q={:.2} α_sat={:.2} α_vio={:.2}{}",
+                sid, c.quality, c.alpha_sat, c.alpha_vio, suspicious
+            );
+        }
+    }
     Ok(())
+}
+
+/// Aggregate `mutation_result` + `test_smell_detected` events per spec
+/// into a [`Calibration`] via FR-EQ-002's formula. Specs with no evidence
+/// receive [`Calibration::prototype`] — bit-identical to v1.0.4 behaviour.
+fn compute_per_spec_calibrations(
+    specs: &[specere_filter::hmm::SpecDescriptor],
+    events: &[specere_telemetry::Event],
+) -> std::collections::HashMap<String, specere_filter::Calibration> {
+    use std::collections::HashMap;
+    // Kill-rate numerator + denominator per spec.
+    let mut caught: HashMap<String, u32> = HashMap::new();
+    let mut missed: HashMap<String, u32> = HashMap::new();
+    // Distinct test_fn × smell_kind pairs per spec (dedupe repeated lint runs).
+    let mut smells: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+
+    for e in events {
+        let kind = e.attrs.get("event_kind").map(String::as_str);
+        let spec_id = e.attrs.get("spec_id").map(String::as_str);
+        match (kind, spec_id) {
+            (Some("mutation_result"), Some(sid)) => {
+                let outcome = e.attrs.get("outcome").map(String::as_str).unwrap_or("");
+                match outcome {
+                    "caught" => *caught.entry(sid.to_string()).or_insert(0) += 1,
+                    "missed" | "timeout" => *missed.entry(sid.to_string()).or_insert(0) += 1,
+                    // "unviable" is excluded from the denominator.
+                    _ => {}
+                }
+            }
+            (Some("test_smell_detected"), Some(sid)) => {
+                let fn_name = e.attrs.get("test_fn").map(String::as_str).unwrap_or("");
+                let smell = e.attrs.get("smell_kind").map(String::as_str).unwrap_or("");
+                let key = format!("{fn_name}|{smell}");
+                smells.entry(sid.to_string()).or_default().insert(key);
+            }
+            _ => {}
+        }
+    }
+
+    let mut out: std::collections::HashMap<String, specere_filter::Calibration> =
+        std::collections::HashMap::new();
+    for spec in specs {
+        let c = caught.get(&spec.id).copied().unwrap_or(0);
+        let m = missed.get(&spec.id).copied().unwrap_or(0);
+        let kill_rate = if c + m == 0 {
+            // No mutation evidence — treat as "perfect" so prototype alphas hold.
+            1.0
+        } else {
+            c as f64 / (c + m) as f64
+        };
+        let n_smells = smells.get(&spec.id).map(|s| s.len()).unwrap_or(0) as f64;
+        let smell_penalty = (1.0 - 0.15 * n_smells).clamp(0.3, 1.0);
+        out.insert(
+            spec.id.clone(),
+            specere_filter::Calibration::from_evidence(kill_rate, smell_penalty),
+        );
+    }
+    out
 }
 
 /// Thin enum so `run_filter_run` can dispatch to HMM or BP without trait
