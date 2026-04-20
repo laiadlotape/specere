@@ -364,10 +364,12 @@ mod tests {
                     test_names: Vec::new(),
                     provenance: None,
                     version_metrics: None,
+                    coverage_hash: None,
                 })
                 .collect(),
             edges: Vec::new(),
             comod_edges: Vec::new(),
+            cov_cooccur_edges: Vec::new(),
         }
     }
 

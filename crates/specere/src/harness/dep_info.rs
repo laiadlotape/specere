@@ -194,6 +194,7 @@ mod tests {
             test_names: Vec::new(),
             provenance: None,
             version_metrics: None,
+            coverage_hash: None,
         }
     }
 

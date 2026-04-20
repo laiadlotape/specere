@@ -157,6 +157,19 @@ enum HarnessKind {
         #[arg(long, default_value_t = 3)]
         min_commits: u32,
     },
+    /// Compute per-test coverage bitvectors via `cargo-llvm-cov`, then
+    /// Jaccard similarity → `cov_cooccur` edges. FR-HM-030..033.
+    Coverage {
+        /// Test-only — read per-test LCOV files from this dir instead of
+        /// running `cargo llvm-cov`. One file per test named
+        /// `<path-with-slashes-as-__>.lcov` (e.g. `tests__it.lcov`).
+        #[arg(long, value_name = "PATH", hide = true)]
+        from_lcov_dir: Option<PathBuf>,
+        /// Jaccard threshold for emitting a `cov_cooccur` edge. Default
+        /// 0.1 — below that, noise dominates.
+        #[arg(long, default_value_t = 0.1)]
+        threshold: f64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -418,6 +431,10 @@ fn main() -> Result<()> {
             HarnessKind::Scan { format } => harness::run_scan(&ctx, &format),
             HarnessKind::Provenance => harness::run_provenance(&ctx),
             HarnessKind::History { min_commits } => harness::run_history(&ctx, min_commits),
+            HarnessKind::Coverage {
+                from_lcov_dir,
+                threshold,
+            } => harness::run_coverage(&ctx, from_lcov_dir, threshold),
         },
     };
 
