@@ -23,6 +23,7 @@ Thumbs.db
 # Claude Code local settings and session artifacts (credential-bearing)
 .claude/settings.local.json
 .claude/.session-*
+.claude/scheduled_tasks.lock
 # SpecERE runtime state (belief store, events, OTel dumps) — committed files
 # are the explicit allowlist below.
 .specere/*
