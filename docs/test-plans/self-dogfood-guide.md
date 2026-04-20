@@ -611,9 +611,71 @@ Restore with another `$BIN filter run` after deleting the corrupt file: `rm .spe
 
 ---
 
+## Part I — Harness manager & inspector (v1.2.0)
+
+These scenarios exercise the `specere harness *` verb group. Each produces telemetry (`harness_*_completed` events) into `.specere/events.jsonl` and writes into `.specere/harness-graph.toml`. Order matters: scan → provenance → history → coverage → flaky → cluster → tui.
+
+### T-39 — `specere harness scan` classifies every file
+
+```sh
+$BIN harness scan
+```
+
+**Expected:** prints a per-category count table (`unit`, `integration`, `property`, `fuzz`, `bench`, `snapshot`, `golden`, `mock`, `fixture`, `workflow`, `production`). Writes `.specere/harness-graph.toml` with sorted-by-id nodes + any `direct_use` edges discovered from `target/debug/deps/*.d` files (empty on a fresh clone before `cargo build`).
+
+Byte-identical re-run: `$BIN harness scan && sha256sum .specere/harness-graph.toml` then run again and diff — must be identical.
+
+### T-40 — `specere harness provenance` backfills git creators
+
+```sh
+$BIN harness provenance
+```
+
+**Expected:** reports `X/Y node(s) enriched; 0 via workflow span, N via git log` (the specere repo has no `specere.workflow_step` events yet for its own tests, so attribution is git-only). Every node in `harness-graph.toml` gains a `[nodes.provenance]` section with `creator_commit` + `creator_human`.
+
+### T-41 — `specere harness history` emits hotspot top-5
+
+```sh
+$BIN harness history
+```
+
+**Expected:** summary `enriched N/N node(s); M comod edge(s) (min_co_commits=3)` + a "top hotspots" list with `hotspot_score  path  (commits=…, churn=…, age=…d, authors=…)` for the five most-churned harness files. Every node gains `version_metrics`. At least one `comod_edges` entry exists if the repo has test files co-modified ≥ 3 times.
+
+### T-42 — `specere harness cluster` runs Louvain
+
+```sh
+$BIN harness cluster --seed 42
+```
+
+**Expected:** summary `N cluster(s) over M node(s); total modularity = X.XXX (algo=louvain, seed=42)` + per-cluster member counts. Every node in `harness-graph.toml` gains a `cluster_id` like `C01`. Seed-determinism: re-running with the same seed yields byte-identical output.
+
+Add `--emit-to-sensor-map` to also print a pasteable `[harness_cluster]` TOML block to stdout.
+
+### T-43 — `specere harness flaky --from-runs` honours insufficient history
+
+```sh
+cat > /tmp/runs.jsonl <<'EOF'
+{"run_id":"r1","outcomes":{"crates/specere/tests/fr_p4_filter_cli.rs":"pass"}}
+{"run_id":"r2","outcomes":{"crates/specere/tests/fr_p4_filter_cli.rs":"fail"}}
+EOF
+$BIN harness flaky --from-runs /tmp/runs.jsonl
+```
+
+**Expected:** prints `2 run(s) in history — need ≥ 50 for PPMI (insufficient history)`. No `cofail_edges` emitted, no `flakiness_score` written. Same `insufficient history` contract as FR-EQ-004's `calibrate motion-from-evidence`.
+
+### T-44 — `specere harness tui --headless-frames 1`
+
+```sh
+$BIN harness tui --headless-frames 1
+```
+
+**Expected:** exits 0 with no output to stdout (paints one frame to a `ratatui::TestBackend`, then exits). Confirms the TUI widget tree builds end-to-end. The real interactive `$BIN harness tui` opens a full-screen ratatui UI — skip it in CI; test it by hand on a real TTY.
+
+---
+
 ## Checklist
 
-Run through all 38 scenarios and tick off as you go. The minimum bar for a release-ready state is **every scenario passing**. If any scenario diverges from its expected output, capture the output and file it as a regression issue.
+Run through all 44 scenarios and tick off as you go. The minimum bar for a release-ready state is **every scenario passing**. If any scenario diverges from its expected output, capture the output and file it as a regression issue.
 
 | # | Part | Scenario | Pass |
 |---|---|---|---|
@@ -655,6 +717,12 @@ Run through all 38 scenarios and tick off as you go. The minimum bar for a relea
 | T-36 | H | corrupted events.jsonl line | ☐ |
 | T-37 | H | missing sensor-map error | ☐ |
 | T-38 | H | corrupted posterior.toml error | ☐ |
+| T-39 | I | `harness scan` classifies all categories | ☐ |
+| T-40 | I | `harness provenance` git-fallback | ☐ |
+| T-41 | I | `harness history` hotspot top-5 | ☐ |
+| T-42 | I | `harness cluster` Louvain + seed-determinism | ☐ |
+| T-43 | I | `harness flaky` insufficient-history contract | ☐ |
+| T-44 | I | `harness tui --headless-frames 1` smoke | ☐ |
 
 Tear down the sandbox when finished:
 
@@ -670,14 +738,15 @@ rm -rf "$SANDBOX"
 - **`filter status` may print rows in a different order than the on-disk entries.** Entries in `posterior.toml` are always sorted by `spec_id` (for FR-P4-004 byte-stability). `filter status` then re-sorts them per `--sort`. If you diff posterior.toml bytes you'll see spec_id order; if you diff `filter status` output you'll see entropy-desc order.
 - **`filter-state::remove` preserves runtime-edited files** (posterior, sensor-map, events.sqlite, events.jsonl). This is intentional — the user may want to keep their history. Use `rm -rf .specere` if you genuinely want a clean slate.
 - **`specere remove claude-code-deploy --force`** leaves `.claude/skills/speckit-git-*` if they weren't installed by the current specere version. Older installs wrote fewer skills; `remove` only cleans what that install tracked in its manifest. Safe to leave or delete by hand.
-- **`specere init` on the upstream specere repo** will fail with `missing field unit_id` if the repo's committed `.specere/manifest.toml` predates the MarkerEntry schema. The Setup step above removes this manifest before init — if you're testing a real user-facing upgrade flow, the proper regression fix is to make `unit_id` optional on MarkerEntry (tracked as a follow-up; not blocking current releases).
+- **Pre-v1.0 `.specere/manifest.toml` backwards compatibility** (fixed in PR #103): `MarkerEntry.unit_id` is now `#[serde(default)]` + backfilled from the containing `[[units]].id` during load, so `specere init` / `status` / `verify` work on older installs without the Setup block needing to `rm -rf .specere/` first.
 
 ## Observed run log
 
-| Version | Date | All 38 pass? | Notes |
+| Version | Date | All 44 pass? | Notes |
 |---|---|---|---|
 | v1.0.2 | 2026-04-19 | 37/38 | T-31 surfaced issue #61 (feature.json parser rigid on key name). Fixed in v1.0.3. |
 | v1.0.3 | 2026-04-19 | anticipate 38/38 | #61 fixed; T-31 guide updated to use `feature_directory` and note the new `feature_dir` alias. |
+| v1.2.0 (untagged) | 2026-04-20 | 6 new scenarios added (T-39..T-44) | Harness manager verbs reachable; needs a human pass on a real TTY for T-44's interactive path. |
 
 ## Appendix B — Cleanup between test runs
 
