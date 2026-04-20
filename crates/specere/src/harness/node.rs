@@ -89,6 +89,12 @@ pub struct HarnessFile {
     /// enabled = false`). 16-char hex digest of the test's bitvector.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coverage_hash: Option<String>,
+    /// Populated by `specere harness flaky` (S5). `P(fail)` across the
+    /// collected `test × run` matrix. `None` until ≥ `--min-runs` (default
+    /// 50) runs have accumulated — same insufficient-history pattern as
+    /// FR-EQ-004.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flakiness_score: Option<f64>,
 }
 
 /// Per-file git-history metrics (FR-HM-020). Computed by
@@ -194,6 +200,9 @@ pub struct HarnessGraph {
     /// Populated by `specere harness coverage` (FR-HM-032).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cov_cooccur_edges: Vec<crate::harness::coverage::CovCooccurEdge>,
+    /// Populated by `specere harness flaky` (FR-HM-041).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cofail_edges: Vec<crate::harness::flaky::CofailEdge>,
 }
 
 impl HarnessGraph {
@@ -205,6 +214,8 @@ impl HarnessGraph {
         self.comod_edges
             .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
         self.cov_cooccur_edges
+            .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
+        self.cofail_edges
             .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
         let serialised = toml::to_string_pretty(self).context("serialise harness graph")?;
         if let Some(parent) = path.parent() {
@@ -237,6 +248,7 @@ impl HarnessGraph {
                 edges: Vec::new(),
                 comod_edges: Vec::new(),
                 cov_cooccur_edges: Vec::new(),
+                cofail_edges: Vec::new(),
             });
         }
         let raw =
@@ -285,10 +297,12 @@ mod tests {
                 provenance: None,
                 version_metrics: None,
                 coverage_hash: None,
+                flakiness_score: None,
             }],
             edges: vec![],
             comod_edges: vec![],
             cov_cooccur_edges: vec![],
+            cofail_edges: vec![],
         };
         let tmp = tempfile::NamedTempFile::new().unwrap();
         g.write_atomic(tmp.path()).unwrap();
@@ -310,6 +324,7 @@ mod tests {
                 provenance: None,
                 version_metrics: None,
                 coverage_hash: None,
+                flakiness_score: None,
             })
             .collect();
         let mut g1 = HarnessGraph {
@@ -318,6 +333,7 @@ mod tests {
             edges: Vec::new(),
             comod_edges: Vec::new(),
             cov_cooccur_edges: Vec::new(),
+            cofail_edges: Vec::new(),
         };
         let mut g2 = HarnessGraph {
             schema_version: 1,
@@ -325,6 +341,7 @@ mod tests {
             edges: Vec::new(),
             comod_edges: Vec::new(),
             cov_cooccur_edges: Vec::new(),
+            cofail_edges: Vec::new(),
         };
         let t1 = tempfile::NamedTempFile::new().unwrap();
         let t2 = tempfile::NamedTempFile::new().unwrap();

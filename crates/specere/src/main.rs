@@ -170,6 +170,28 @@ enum HarnessKind {
         #[arg(long, default_value_t = 0.1)]
         threshold: f64,
     },
+    /// Compute per-test flakiness scores + pairwise co-failure PPMI
+    /// edges from CI history. FR-HM-040..043.
+    Flaky {
+        /// Test-only — read pre-built `<run_id>` JSONL file instead of
+        /// looking at the event store. One JSON object per line:
+        /// `{"run_id":"<id>","outcomes":{"<path>":"pass|fail|skip"}}`.
+        #[arg(long, value_name = "PATH", hide = true)]
+        from_runs: Option<PathBuf>,
+        /// Minimum joint-failure count for a `cofail` edge (Hoeffding
+        /// floor). Default 5.
+        #[arg(long, default_value_t = 5)]
+        min_co_fail: u32,
+        /// Flakiness-score cutoff. Tests above this are `probable_flake`
+        /// and their `cofail` contributions get dampened. Default 0.01.
+        #[arg(long, default_value_t = 0.01)]
+        flake_threshold: f64,
+        /// Minimum number of runs before reporting any score. Default
+        /// 50 — below this, the CLI prints "insufficient history" (same
+        /// pattern as FR-EQ-004 motion-from-evidence).
+        #[arg(long, default_value_t = 50)]
+        min_runs: u32,
+    },
 }
 
 #[derive(Subcommand)]
@@ -435,6 +457,12 @@ fn main() -> Result<()> {
                 from_lcov_dir,
                 threshold,
             } => harness::run_coverage(&ctx, from_lcov_dir, threshold),
+            HarnessKind::Flaky {
+                from_runs,
+                min_co_fail,
+                flake_threshold,
+                min_runs,
+            } => harness::run_flaky(&ctx, from_runs, min_co_fail, flake_threshold, min_runs),
         },
     };
 

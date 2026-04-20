@@ -195,6 +195,7 @@ mod tests {
             provenance: None,
             version_metrics: None,
             coverage_hash: None,
+            flakiness_score: None,
         }
     }
 
