@@ -48,6 +48,7 @@ pub fn scan_repo(repo: &Path) -> Result<Vec<HarnessFile>> {
                         provenance: None,
                         version_metrics: None,
                         coverage_hash: None,
+                        flakiness_score: None,
                     });
                     seen.insert(rel);
                 }
@@ -127,6 +128,7 @@ fn walk_dir(
             provenance: None,
             version_metrics: None,
             coverage_hash: None,
+            flakiness_score: None,
         });
         seen.insert(rel);
     }

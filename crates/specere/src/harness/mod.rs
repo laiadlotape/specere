@@ -21,6 +21,7 @@
 pub mod classify;
 pub mod coverage;
 pub mod dep_info;
+pub mod flaky;
 pub mod history;
 pub mod node;
 pub mod provenance;
@@ -54,6 +55,7 @@ pub fn run_scan(ctx: &specere_core::Ctx, format: &str) -> Result<()> {
         edges,
         comod_edges: Vec::new(),
         cov_cooccur_edges: Vec::new(),
+        cofail_edges: Vec::new(),
     };
 
     let out_path = output_path(repo);
@@ -117,6 +119,69 @@ pub fn run_provenance(ctx: &specere_core::Ctx) -> Result<()> {
             report.divergence_detected
         );
     }
+    Ok(())
+}
+
+/// CLI entry — `specere harness flaky`. Reads
+/// `.specere/harness-graph.toml` + per-run test matrices (from
+/// `.specere/test-runs.jsonl`, or from `test_outcome` events in
+/// `.specere/events.jsonl` as a fallback, or from a fixture dir via
+/// `--from-runs`), then computes per-node `flakiness_score` and
+/// pairwise `cofail_edges` via PPMI. Reports `insufficient history`
+/// when fewer than `--min-runs` (default 50) runs have accumulated.
+pub fn run_flaky(
+    ctx: &specere_core::Ctx,
+    from_runs: Option<PathBuf>,
+    min_co_fail: u32,
+    flake_threshold: f64,
+    min_runs: u32,
+) -> Result<()> {
+    let repo = ctx.repo();
+    let out_path = output_path(repo);
+    let mut graph = node::HarnessGraph::load_or_default(&out_path)
+        .with_context(|| format!("read {}", out_path.display()))?;
+    if graph.nodes.is_empty() {
+        println!(
+            "specere harness flaky: no harness-graph.toml found — run `specere harness scan` first"
+        );
+        return Ok(());
+    }
+
+    let runs = if let Some(p) = from_runs {
+        flaky::load_runs(&p).with_context(|| format!("load {}", p.display()))?
+    } else {
+        // Live path: read from the event store.
+        let events = repo.join(".specere").join("events.jsonl");
+        if events.is_file() {
+            flaky::load_runs_from_events(&events)
+                .with_context(|| format!("load {}", events.display()))?
+        } else {
+            Vec::new()
+        }
+    };
+
+    let report = flaky::enrich(&mut graph, &runs, min_co_fail, flake_threshold, min_runs);
+    let node_total = graph.nodes.len();
+    graph
+        .write_atomic(&out_path)
+        .with_context(|| format!("write {}", out_path.display()))?;
+
+    if report.n_runs < min_runs {
+        println!(
+            "specere harness flaky: {} run(s) in history — need ≥ {} for PPMI (insufficient history)",
+            report.n_runs, min_runs
+        );
+        return Ok(());
+    }
+    println!(
+        "specere harness flaky: processed {} run(s); {}/{} node(s) scored; {} probable flake(s); {} cofail edge(s) (min_co_fail={})",
+        report.n_runs,
+        graph.nodes.iter().filter(|n| n.flakiness_score.is_some()).count(),
+        node_total,
+        report.flakes_flagged,
+        report.cofail_edges_emitted,
+        min_co_fail,
+    );
     Ok(())
 }
 

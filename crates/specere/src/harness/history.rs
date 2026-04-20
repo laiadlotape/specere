@@ -365,11 +365,13 @@ mod tests {
                     provenance: None,
                     version_metrics: None,
                     coverage_hash: None,
+                    flakiness_score: None,
                 })
                 .collect(),
             edges: Vec::new(),
             comod_edges: Vec::new(),
             cov_cooccur_edges: Vec::new(),
+            cofail_edges: Vec::new(),
         }
     }
 
