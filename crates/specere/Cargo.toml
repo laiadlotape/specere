@@ -38,6 +38,7 @@ sha2.workspace = true
 hex.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
 # Integration tests in tests/fr_p1_*.rs drive the `specere` binary via

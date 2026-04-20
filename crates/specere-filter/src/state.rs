@@ -109,6 +109,30 @@ impl Calibration {
         }
     }
 
+    /// FR-EQ-012 bug-severity decay: converts a `bug_reported` event
+    /// into a VIO-leaning evidence magnitude, exponentially decayed
+    /// against its age.
+    ///
+    /// Per Kim '07 and subsequent industrial observations, bugs have a
+    /// roughly 50-day half-life in their signal value — a reported bug
+    /// that hasn't been addressed in 2 months is weaker evidence of a
+    /// persistent problem than one reported yesterday. Closed bugs
+    /// decay faster (25-day half-life) because the fix itself is the
+    /// adjudication.
+    ///
+    /// Severity base magnitudes: critical=0.30, major=0.15, minor=0.05.
+    /// Returns the decayed signal in `[0.0, 0.30]`.
+    pub fn bug_signal_decayed(severity: &str, state: &str, age_days: u32) -> f64 {
+        let base = match severity {
+            "critical" => 0.30,
+            "major" => 0.15,
+            _ => 0.05,
+        };
+        let half_life = if state == "closed" { 25.0 } else { 50.0 };
+        let lambda = 2.0_f64.ln() / half_life;
+        base * (-lambda * age_days as f64).exp()
+    }
+
     /// Extended constructor for FR-HM-052b: compresses quality further
     /// when the spec's harness-cluster peers show systematic flakiness.
     ///
