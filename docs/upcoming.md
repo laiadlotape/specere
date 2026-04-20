@@ -32,10 +32,6 @@
 - **Scope.** Budgeted ($20/mo cap) counter-test generator.
 - **Size.** ~800 LoC + ongoing LLM spend.
 
-### 4. Long spec-ID table alignment
-
-- Cosmetic — table column width fixed at 11 chars; JSON output is the programmatic path. Noted in self-dogfood phase-4 manual-test report M-16.
-
 ## Beyond the immediate queue
 
 Nothing in the v1.0 master plan is open. v1.0.x line is bug-fix + evidence-quality; v1.2.0 is the harness manager (above); v2.0.0 GUI requires a deliberate JS toolchain decision; post-v2 queue is bug-tracker + LLM adversary.

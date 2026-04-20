@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Fixed (v1.2.0 prep — `filter status` column alignment)
+
+- **`specere filter status` table dynamically sizes the `spec_id` column** (`docs/upcoming.md` §4 closure). The column width was hard-coded to 11 chars, which truncated or mis-aligned longer domain-prefixed ids (`FR-auth-alpha`, `FR-EDITOR-001`, `FR-HM-050`). The fix computes `max(header_len=7, longest_id_len, capped at 64)` dynamically per run, so the header + dash separator + every data row align column-for-column. Short-id tables keep their historical visual shape. 3 regression tests: short-id baseline, long-id column-widening, empty-posterior friendly path.
+
 ### Added (v1.2.0 prep — RBPF CLI routing)
 
 - **`[rbpf]` section in sensor-map.toml routes `specere filter run` to the particle filter** (`docs/upcoming.md` §4 closure). New `RbpfConfig::load()` reads `cluster` (required, non-empty), `n_particles` (default 200), `seed` (default 42), `resample_ess_frac` (default 0.5, clamped to `[0.1, 1.0]`). Routing precedence inside `run_filter_run` is documented on `FilterBackend`: (1) `[rbpf].cluster` non-empty → RBPF; (2) `[coupling].edges` non-empty DAG → FactorGraphBP; (3) otherwise → PerSpecHMM. This closes the last Phase-4 CLI gap: users with cyclic coupling graphs used to get a hard `DAG required` error from the BP loader; they can now add `[rbpf]` with the cyclic cluster's spec ids and `filter run` routes through the particle filter instead. New `RBPF::set_belief()` method forwards non-cluster specs to the HMM and re-samples cluster particles from the supplied marginal (joint structure not preserved — adequate for FR-P6 cross-session resume where the saved posterior is already marginalised). `FilterBackend::Rbpf` variant is boxed to keep the dispatch-enum small. 5 unit tests in `specere-filter::rbpf_config` + 3 integration tests (`crates/specere/tests/fr_p4_rbpf_cli_routing.rs`) — route, empty-cluster-falls-through, precedence-over-coupling.
