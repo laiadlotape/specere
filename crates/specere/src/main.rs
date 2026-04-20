@@ -170,6 +170,15 @@ enum HarnessKind {
         #[arg(long, default_value_t = 0.1)]
         threshold: f64,
     },
+    /// Interactive terminal UI for the harness inspector — file tree,
+    /// detail pane, relation inspector overlay, event timeline footer.
+    /// FR-HM-070..072.
+    Tui {
+        /// Test-only — render `N` frames to a TestBackend then exit,
+        /// without touching the real terminal. CI smokes the widget tree.
+        #[arg(long, value_name = "N", hide = true, default_value_t = 0)]
+        headless_frames: u32,
+    },
     /// Run Louvain community detection on the combined edge graph
     /// (direct + comod + cov_cooccur + cofail), write per-node
     /// `cluster_id`s + a cluster-summary table. FR-HM-050..052.
@@ -479,6 +488,7 @@ fn main() -> Result<()> {
                 seed,
                 emit_to_sensor_map,
             } => harness::run_cluster(&ctx, seed, emit_to_sensor_map),
+            HarnessKind::Tui { headless_frames } => harness::run_tui(&ctx, headless_frames),
         },
     };
 
