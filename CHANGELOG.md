@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Fixed (v1.2.0 prep — polish)
+
+- **Pre-v1.0 manifest backwards compatibility** (`docs/upcoming.md` §5). Old `.specere/manifest.toml` files (generated before v1.0) did not emit `unit_id` on each `MarkerEntry`, so loading them would crash with `missing field unit_id`. Fixed via `#[serde(default)]` on `MarkerEntry.unit_id` (accepts the field's absence without error) plus a backfill pass in `Manifest::load_or_init` that copies each marker's owning `UnitEntry.id` into its empty `unit_id`. Manifests saved by v1.0+ are unaffected — the backfill is a no-op on healthy data. 2 unit tests in `specere-manifest` verify old-schema load + round-trip preservation.
+
 ### Added (v1.2.0 prep — harness manager TUI companion)
 
 - **`specere harness tui` ratatui TUI companion** (FR-HM-070..072). Interactive terminal UI over `.specere/harness-graph.toml`. Three-pane layout: node list (filterable with `/`), detail pane (per-node provenance / coverage / flakiness / cluster metadata), event timeline footer (last few `harness_*_completed` spans). Relation-inspector modal on Enter shows 2-hop neighbourhood counts + incoming/outgoing direct-use edges. Keybindings: `j`/`k` navigate, `Tab` cycles focus, `Enter` opens inspector, `Esc` closes, `/` filters, `q` quits. Pure-data `TuiState` + `render` separation — unit-tested via ratatui's `TestBackend` without needing a real TTY. Hidden `--headless-frames N` flag paints N frames to a TestBackend and exits (CI smoke). 11 unit tests (state-machine transitions + render-without-panic + inspector-overlay-content) + 3 integration tests (CLI smoke with/without scan, events.jsonl footer). Adds `ratatui 0.28` + `crossterm 0.28` as workspace deps.

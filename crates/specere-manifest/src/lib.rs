@@ -59,13 +59,24 @@ impl Manifest {
     pub fn load_or_init(path: &Path, specere_version: &str) -> anyhow::Result<Self> {
         if path.exists() {
             let text = fs::read_to_string(path)?;
-            let m: Manifest = toml::from_str(&text)?;
+            let mut m: Manifest = toml::from_str(&text)?;
             if m.meta.schema_version != SCHEMA_VERSION {
                 anyhow::bail!(
                     "manifest schema version {} not supported (expected {})",
                     m.meta.schema_version,
                     SCHEMA_VERSION
                 );
+            }
+            // Backwards-compat: pre-v1.0 manifests did not emit `unit_id`
+            // on MarkerEntry. We deserialise with `#[serde(default)]` (so
+            // the field lands as empty string) and backfill here from the
+            // containing unit's id. See `docs/upcoming.md` §5.
+            for unit in &mut m.units {
+                for marker in &mut unit.markers {
+                    if marker.unit_id.is_empty() {
+                        marker.unit_id = unit.id.clone();
+                    }
+                }
             }
             Ok(m)
         } else {
@@ -143,4 +154,73 @@ fn now_rfc3339() -> String {
     time::OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    /// Pre-v1.0 manifest shape: no `unit_id` on `MarkerEntry`. The loader
+    /// must accept the old schema without erroring and backfill each
+    /// marker's unit_id from the containing unit's id.
+    #[test]
+    fn load_backfills_marker_unit_id_from_parent_unit() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("manifest.toml");
+        fs::write(
+            &path,
+            r#"[meta]
+specere_version = "0.1.0"
+schema_version = 1
+created_at = "2026-04-18T00:00:00Z"
+
+[[units]]
+id = "speckit"
+version = "1.0"
+installed_at = "2026-04-18T00:00:00Z"
+
+[[units.markers]]
+path = ".gitignore"
+block_id = "speckit-block"
+sha256 = "deadbeef"
+"#,
+        )
+        .unwrap();
+        let m = Manifest::load_or_init(&path, "1.2.0").expect("old-schema manifest loads");
+        assert_eq!(m.units.len(), 1);
+        let u = &m.units[0];
+        assert_eq!(u.id, "speckit");
+        assert_eq!(u.markers.len(), 1);
+        // unit_id must be backfilled from parent `id`, not left empty.
+        assert_eq!(u.markers[0].unit_id, "speckit");
+    }
+
+    /// Round-trip: a manifest written by this version MUST deserialise
+    /// without the backfill being needed (so newer markers carry their
+    /// own unit_id on disk). Keeps the backfill a no-op on healthy data.
+    #[test]
+    fn round_trip_preserves_explicit_unit_id() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("manifest.toml");
+        let mut m = Manifest::new("1.2.0");
+        m.units.push(UnitEntry {
+            id: "filter-state".into(),
+            version: "1.0".into(),
+            installed_at: "2026-04-18T00:00:00Z".into(),
+            install_config: toml::Table::new(),
+            files: Vec::new(),
+            markers: vec![specere_core::MarkerEntry {
+                path: ".gitignore".into(),
+                unit_id: "filter-state".into(),
+                block_id: Some("filter-state-block".into()),
+                sha256: "abc123".into(),
+            }],
+            dirs: Vec::new(),
+            notes: Vec::new(),
+        });
+        m.save(&path).unwrap();
+        let loaded = Manifest::load_or_init(&path, "1.2.0").unwrap();
+        assert_eq!(loaded.units[0].markers[0].unit_id, "filter-state");
+    }
 }
