@@ -148,6 +148,15 @@ enum HarnessKind {
     /// which `/speckit-*` verb created the file (if any) plus the
     /// introducing git commit + author. FR-HM-010..012.
     Provenance,
+    /// Enrich harness nodes with git-history metrics (age, commits,
+    /// churn, authors, hotspot score) and emit pairwise co-modification
+    /// edges via PPMI. FR-HM-020..022.
+    History {
+        /// Minimum co-modification count for a pair to emit an edge.
+        /// Default 3 — same floor as `specere calibrate from-git`.
+        #[arg(long, default_value_t = 3)]
+        min_commits: u32,
+    },
 }
 
 #[derive(Subcommand)]
@@ -408,6 +417,7 @@ fn main() -> Result<()> {
         Command::Harness { kind } => match kind {
             HarnessKind::Scan { format } => harness::run_scan(&ctx, &format),
             HarnessKind::Provenance => harness::run_provenance(&ctx),
+            HarnessKind::History { min_commits } => harness::run_history(&ctx, min_commits),
         },
     };
 

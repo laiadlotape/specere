@@ -279,8 +279,10 @@ mod tests {
                 crate_name: None,
                 test_names: Vec::new(),
                 provenance: None,
+                version_metrics: None,
             }],
             edges: Vec::new(),
+            comod_edges: Vec::new(),
         }
     }
 
