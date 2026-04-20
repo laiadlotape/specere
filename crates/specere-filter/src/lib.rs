@@ -24,6 +24,7 @@ pub mod motion;
 pub mod motion_fit;
 pub mod posterior;
 pub mod rbpf;
+pub mod rbpf_config;
 pub mod specs;
 pub mod state;
 
@@ -36,5 +37,6 @@ pub use motion::Motion;
 pub use motion_fit::{fit as fit_motion_from_evidence, FitInput, FitReport, SpecFit};
 pub use posterior::{Entry, Posterior};
 pub use rbpf::RBPF;
+pub use rbpf_config::RbpfConfig;
 pub use specs::load_specs;
 pub use state::{Belief, CalibratedTestSensor, Calibration, PerSpecTestSensor, Status, TestSensor};

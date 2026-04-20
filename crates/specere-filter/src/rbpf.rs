@@ -98,6 +98,37 @@ impl RBPF {
         self.cluster.len()
     }
 
+    /// Overwrite one spec's belief — mirrors `PerSpecHMM::set_belief`.
+    /// For non-cluster specs this forwards directly to the HMM. For
+    /// cluster specs we re-sample each particle's state for this spec
+    /// from the supplied marginal. Joint structure is *not* preserved
+    /// (particles become independent across the specs being set) — this
+    /// is adequate for cross-session resume (FR-P6) where the saved
+    /// posterior is already marginalised anyway.
+    pub fn set_belief(&mut self, spec_id: &str, belief: &[f64]) {
+        assert_eq!(belief.len(), 3, "set_belief requires a length-3 vector");
+        self.hmm.set_belief(spec_id, belief);
+        if let Some(&pos) = self.cluster_id_to_pos.get(spec_id) {
+            // Marginal-preserving particle re-seed: sample each row's
+            // value for this cluster position from the given marginal.
+            // Normalised defensively in case input drifted off-simplex.
+            let arr = Array1::from_vec(belief.to_vec());
+            let total: f64 = arr.iter().sum();
+            let normed = if total > EPS {
+                arr.mapv(|v| v / total)
+            } else {
+                Array1::from_elem(3, 1.0 / 3.0)
+            };
+            for n in 0..self.n_particles() {
+                self.particles[[n, pos]] = sample_categorical(&normed, &mut self.rng);
+            }
+            // Reset weights to uniform — the old log-weights refer to the
+            // pre-seed particle distribution and are stale after re-sampling.
+            let n = self.n_particles() as f64;
+            self.log_weights = Array1::from_elem(self.n_particles(), -(n).ln());
+        }
+    }
+
     pub fn predict(&mut self, files_touched: &[&str]) {
         self.hmm.predict(files_touched);
         // Step each particle's cluster-spec states by sampling from the row

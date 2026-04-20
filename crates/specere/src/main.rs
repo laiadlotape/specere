@@ -670,16 +670,31 @@ fn run_filter_run(
         return Ok(());
     }
 
-    // Branch: use FactorGraphBP when the sensor-map has edges, else plain
-    // PerSpecHMM. RBPF routing from the CLI is out-of-scope for #43.
-    let mut hmm = if coupling.edges.is_empty() {
-        FilterBackend::Hmm(specere_filter::PerSpecHMM::new(specs.clone(), motion))
-    } else {
-        FilterBackend::Bp(specere_filter::FactorGraphBP::new(
+    // Branch: RBPF when `[rbpf]` is configured (escape valve for cyclic
+    // coupling clusters); FactorGraphBP when `[coupling]` edges form a
+    // DAG; plain PerSpecHMM otherwise. Precedence documented on
+    // `FilterBackend`.
+    let rbpf_config = specere_filter::RbpfConfig::load(&sensor_map_path)
+        .with_context(|| format!("parse [rbpf] from {}", sensor_map_path.display()))?;
+    let mut hmm = match rbpf_config {
+        Some(cfg) => {
+            let cluster_refs: Vec<&str> = cfg.cluster.iter().map(String::as_str).collect();
+            FilterBackend::Rbpf(Box::new(specere_filter::RBPF::new(
+                specs.clone(),
+                motion,
+                &cluster_refs,
+                cfg.n_particles,
+                cfg.seed,
+            )))
+        }
+        None if coupling.edges.is_empty() => {
+            FilterBackend::Hmm(specere_filter::PerSpecHMM::new(specs.clone(), motion))
+        }
+        None => FilterBackend::Bp(specere_filter::FactorGraphBP::new(
             specs.clone(),
             motion,
             &coupling,
-        ))
+        )),
     };
 
     // FR-P6 cross-session resume: seed the backend's belief buffer from the
@@ -978,11 +993,19 @@ fn compute_per_spec_calibrations(
     out
 }
 
-/// Thin enum so `run_filter_run` can dispatch to HMM or BP without trait
-/// objects. RBPF needs explicit cluster config → not CLI-wired in #43.
+/// Thin enum so `run_filter_run` can dispatch to HMM, BP, or RBPF
+/// without trait objects. Routing precedence (highest first):
+///
+/// 1. `[rbpf] cluster = [...]` in sensor-map → RBPF.
+/// 2. `[coupling] edges = [...]` (non-empty DAG) → FactorGraphBP.
+/// 3. Otherwise → plain PerSpecHMM.
 enum FilterBackend {
     Hmm(specere_filter::PerSpecHMM),
     Bp(specere_filter::FactorGraphBP),
+    /// Boxed because RBPF's particle buffer is the largest variant
+    /// (~880 bytes); keeping the enum size bounded by the non-RBPF
+    /// variants avoids wasted memory on every dispatch.
+    Rbpf(Box<specere_filter::RBPF>),
 }
 
 impl FilterBackend {
@@ -990,6 +1013,7 @@ impl FilterBackend {
         match self {
             Self::Hmm(f) => f.predict(files),
             Self::Bp(f) => f.predict(files),
+            Self::Rbpf(f) => f.predict(files),
         }
     }
     fn update_test<S: specere_filter::TestSensor>(
@@ -1001,12 +1025,14 @@ impl FilterBackend {
         match self {
             Self::Hmm(f) => f.update_test(spec_id, outcome, sensor),
             Self::Bp(f) => f.update_test(spec_id, outcome, sensor),
+            Self::Rbpf(f) => f.update_test(spec_id, outcome, sensor),
         }
     }
     fn marginal(&self, spec_id: &str) -> Result<specere_filter::Belief> {
         match self {
             Self::Hmm(f) => f.marginal(spec_id),
             Self::Bp(f) => f.marginal(spec_id),
+            Self::Rbpf(f) => f.marginal(spec_id),
         }
     }
     /// Seed one spec's belief — delegates into the backend's HMM buffer.
@@ -1014,6 +1040,7 @@ impl FilterBackend {
         match self {
             Self::Hmm(f) => f.set_belief(spec_id, belief),
             Self::Bp(f) => f.set_belief(spec_id, belief),
+            Self::Rbpf(f) => f.set_belief(spec_id, belief),
         }
     }
 }
