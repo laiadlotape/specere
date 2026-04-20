@@ -20,6 +20,7 @@
 
 pub mod classify;
 pub mod dep_info;
+pub mod history;
 pub mod node;
 pub mod provenance;
 pub mod scan;
@@ -50,6 +51,7 @@ pub fn run_scan(ctx: &specere_core::Ctx, format: &str) -> Result<()> {
         schema_version: 1,
         nodes,
         edges,
+        comod_edges: Vec::new(),
     };
 
     let out_path = output_path(repo);
@@ -112,6 +114,65 @@ pub fn run_provenance(ctx: &specere_core::Ctx) -> Result<()> {
             "  {} file(s) flagged: agent-created, human-modified (advisory — no block)",
             report.divergence_detected
         );
+    }
+    Ok(())
+}
+
+/// CLI entry — `specere harness history`. Reads
+/// `.specere/harness-graph.toml`, enriches every node with
+/// `version_metrics`, emits `comod_edges` over the min-count threshold,
+/// and writes the result back. Prints a top-5 hotspot list.
+pub fn run_history(ctx: &specere_core::Ctx, min_comod_commits: u32) -> Result<()> {
+    let repo = ctx.repo();
+    let out_path = output_path(repo);
+    let mut graph = node::HarnessGraph::load_or_default(&out_path)
+        .with_context(|| format!("read {}", out_path.display()))?;
+    if graph.nodes.is_empty() {
+        println!(
+            "specere harness history: no harness-graph.toml found — run `specere harness scan` first"
+        );
+        return Ok(());
+    }
+    let report = history::enrich(&mut graph, repo, min_comod_commits)
+        .with_context(|| format!("history walk over {}", repo.display()))?;
+    // Snapshot hotspot list before the mutable write_atomic call borrows graph.
+    let mut hotspots: Vec<(String, node::VersionMetrics)> = graph
+        .nodes
+        .iter()
+        .filter_map(|n| {
+            n.version_metrics
+                .as_ref()
+                .map(|vm| (n.path.clone(), vm.clone()))
+        })
+        .collect();
+    hotspots.sort_by(|a, b| {
+        b.1.hotspot_score
+            .partial_cmp(&a.1.hotspot_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let node_total = graph.nodes.len();
+
+    graph
+        .write_atomic(&out_path)
+        .with_context(|| format!("write {}", out_path.display()))?;
+
+    println!(
+        "specere harness history: enriched {}/{} node(s); {} comod edge(s) (min_co_commits={})",
+        report.nodes_enriched, node_total, report.comod_edges_emitted, min_comod_commits
+    );
+    if !hotspots.is_empty() {
+        println!("  top hotspots (hotspot_score, path):");
+        for (path, vm) in hotspots.iter().take(5) {
+            println!(
+                "    {score:>7.2}  {path}  (commits={c}, churn={ch}, age={a}d, authors={au})",
+                score = vm.hotspot_score,
+                path = path,
+                c = vm.commits,
+                ch = vm.churn_rate,
+                a = vm.age_days,
+                au = vm.authors
+            );
+        }
     }
     Ok(())
 }
