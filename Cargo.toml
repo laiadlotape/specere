@@ -52,6 +52,8 @@ fs2 = "0.4"
 syn = { version = "2", features = ["full", "visit", "extra-traits"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
+ratatui = "0.28"
+crossterm = "0.28"
 
 specere-core = { path = "crates/specere-core", version = "1.0.4" }
 specere-units = { path = "crates/specere-units", version = "1.0.4" }

@@ -27,6 +27,7 @@ pub mod history;
 pub mod node;
 pub mod provenance;
 pub mod scan;
+pub mod tui;
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -481,6 +482,48 @@ pub fn run_history(ctx: &specere_core::Ctx, min_comod_commits: u32) -> Result<()
         min_comod_commits.to_string(),
     );
     emit_completion_event(ctx, "harness_history_completed", "history", attrs);
+    Ok(())
+}
+
+/// CLI entry — `specere harness tui`. Launches a ratatui companion UI
+/// over the existing harness-graph.toml. With `headless_frames > 0`,
+/// paints to a TestBackend for smoke-tests (no TTY required).
+pub fn run_tui(ctx: &specere_core::Ctx, headless_frames: u32) -> Result<()> {
+    let repo = ctx.repo();
+    let out_path = output_path(repo);
+    let graph = node::HarnessGraph::load_or_default(&out_path)
+        .with_context(|| format!("read {}", out_path.display()))?;
+    if graph.nodes.is_empty() {
+        println!(
+            "specere harness tui: no harness-graph.toml found — run `specere harness scan` first"
+        );
+        return Ok(());
+    }
+    // Load the last ~20 events as a pre-computed snapshot for the footer.
+    let events_path = repo.join(".specere").join("events.jsonl");
+    let events: Vec<String> = if events_path.is_file() {
+        std::fs::read_to_string(&events_path)
+            .unwrap_or_default()
+            .lines()
+            .rev()
+            .take(20)
+            .map(|l| {
+                let v: serde_json::Value = serde_json::from_str(l).unwrap_or_default();
+                let kind = v["attrs"]["event_kind"].as_str().unwrap_or("?");
+                let ts = v["ts"]
+                    .as_str()
+                    .unwrap_or("")
+                    .chars()
+                    .take(19)
+                    .collect::<String>();
+                format!("[{ts}] {kind}")
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let state = tui::TuiState::new(graph, events);
+    tui::run(state, headless_frames).with_context(|| "TUI event loop")?;
     Ok(())
 }
 
