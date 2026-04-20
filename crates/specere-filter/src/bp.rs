@@ -5,8 +5,11 @@
 //! small damped message along every edge. The pair factor is a 3×3 log
 //! matrix that is zero except for the `(Vio, Vio)` corner, which carries
 //! `ln(kappa)` — "if src is VIOLATED, push dst toward VIOLATED." Messages
-//! are log-sum-exp combined, mean-centred so a uniform src produces no
-//! bias, and added to the destination belief with the `damp` factor.
+//! are log-sum-exp combined, normalised via logsumexp so they encode a
+//! proper probability distribution (`sum(exp(msg)) == 1`), and added to
+//! the destination belief with the `damp` factor. Using logsumexp here
+//! (rather than arithmetic-mean centring) is what stops `p_vio` from
+//! running away to 1.0 on pass-only streams (issue #67).
 //!
 //! The graph must be a DAG (enforced in [`crate::CouplingGraph::require_dag`]).
 //! True cycles escape to RBPF (#42).
@@ -149,8 +152,17 @@ impl FactorGraphBP {
                 let lse = m_max + col.iter().map(|x| (x - m_max).exp()).sum::<f64>().ln();
                 msg[d] = lse;
             }
-            let mean = msg.sum() / 3.0;
-            msg.mapv_inplace(|x| x - mean);
+            // Normalise the message to a proper log-probability distribution
+            // via logsumexp, NOT arithmetic-mean centring. The old
+            // `msg -= mean(msg)` normalisation (issue #67) left a small
+            // VIO-positive bias per iteration when the source belief was
+            // near-uniform — under hundreds of pass-only events that bias
+            // compounded until p_vio ran away to 1.0 on low-evidence specs.
+            // Logsumexp-centring makes `sum(exp(msg)) == 1` so repeated BP
+            // sweeps no longer drift monotonically.
+            let m_max = msg.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let lse_total = m_max + msg.iter().map(|x| (x - m_max).exp()).sum::<f64>().ln();
+            msg.mapv_inplace(|x| x - lse_total);
             let mut dst_row = new_log.row_mut(j);
             for d in 0..3 {
                 dst_row[d] += self.damp * msg[d];
@@ -244,6 +256,64 @@ mod tests {
                     b[k],
                 );
             }
+        }
+    }
+
+    /// Regression test for issue #67 — "filter converges to p_vio=1.0
+    /// on specs with ONLY outcome=pass events". The pre-fix BP message
+    /// normalisation used arithmetic-mean centring, which left a small
+    /// VIO-positive bias per iteration under near-uniform source
+    /// beliefs. Over hundreds of pass-only events that bias compounded
+    /// until p_vio ran away to 1.0. The fix (logsumexp normalisation)
+    /// must keep p_vio bounded well below 1.0 under pass-only streams.
+    #[test]
+    fn pass_only_stream_does_not_saturate_p_vio() {
+        use ndarray::array;
+
+        struct PassSensor;
+        impl TestSensor for PassSensor {
+            fn log_likelihood(&self, _spec_id: &str, _outcome: &str) -> Array1<f64> {
+                array![0.55_f64.ln(), 0.92_f64.ln(), 0.10_f64.ln()]
+            }
+        }
+
+        let specs = vec![
+            spec("FR-001"),
+            spec("FR-002"),
+            spec("FR-003"),
+            spec("FR-004"),
+            spec("FR-005"),
+        ];
+        let motion = Motion::prototype_defaults();
+        let coupling = CouplingGraph {
+            edges: vec![
+                ("FR-001".into(), "FR-002".into()),
+                ("FR-002".into(), "FR-003".into()),
+                ("FR-003".into(), "FR-004".into()),
+                ("FR-004".into(), "FR-005".into()),
+                ("FR-001".into(), "FR-005".into()),
+            ],
+        };
+        let mut bp = FactorGraphBP::new(specs.clone(), motion, &coupling).with_n_iter(3);
+
+        for _ in 0..100 {
+            for s in &specs {
+                bp.update_test(&s.id, "pass", &PassSensor).unwrap();
+            }
+        }
+
+        for s in &specs {
+            let m = bp.marginal(&s.id).unwrap();
+            assert!(
+                m[2] < 0.1,
+                "spec {} ran away to p_vio={:.4} on pass-only stream (issue #67): full marginal={m:?}",
+                s.id, m[2]
+            );
+            assert!(
+                m[1] > 0.4,
+                "spec {} should remain SAT-leaning on pass-only stream: p_sat={:.4}",
+                s.id, m[1]
+            );
         }
     }
 
