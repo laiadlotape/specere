@@ -170,6 +170,18 @@ enum HarnessKind {
         #[arg(long, default_value_t = 0.1)]
         threshold: f64,
     },
+    /// Run Louvain community detection on the combined edge graph
+    /// (direct + comod + cov_cooccur + cofail), write per-node
+    /// `cluster_id`s + a cluster-summary table. FR-HM-050..052.
+    Cluster {
+        /// Deterministic seed for node-visitation order. Default 42.
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+        /// Also print a `[harness_cluster]` TOML snippet to stdout for
+        /// pasting into `.specere/sensor-map.toml`.
+        #[arg(long)]
+        emit_to_sensor_map: bool,
+    },
     /// Compute per-test flakiness scores + pairwise co-failure PPMI
     /// edges from CI history. FR-HM-040..043.
     Flaky {
@@ -463,6 +475,10 @@ fn main() -> Result<()> {
                 flake_threshold,
                 min_runs,
             } => harness::run_flaky(&ctx, from_runs, min_co_fail, flake_threshold, min_runs),
+            HarnessKind::Cluster {
+                seed,
+                emit_to_sensor_map,
+            } => harness::run_cluster(&ctx, seed, emit_to_sensor_map),
         },
     };
 

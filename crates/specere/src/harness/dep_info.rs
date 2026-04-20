@@ -196,6 +196,7 @@ mod tests {
             version_metrics: None,
             coverage_hash: None,
             flakiness_score: None,
+            cluster_id: None,
         }
     }
 
