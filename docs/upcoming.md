@@ -32,28 +32,12 @@
 - **Scope.** Budgeted ($20/mo cap) counter-test generator.
 - **Size.** ~800 LoC + ongoing LLM spend.
 
-### 4. FR-HM-052b cluster-belief priors wired into the BBN
-
-- **Why.** v1.2.0 emits the `[harness_cluster]` snippet but doesn't yet auto-wire `Calibration::from_cluster()` into `PerSpecTestSensor`. Users can paste the snippet for now; proper filter-side integration follows once real repos exercise the cluster assignments.
-- **Size.** ~200 LoC in `specere-filter::state`.
-
-### 5. MarkerEntry schema backwards-compat
-
-- **Why.** The specere repo's own committed `.specere/manifest.toml` uses an early pre-`unit_id` MarkerEntry schema. `specere status` / `verify` on a fresh clone of the upstream repo errors with `missing field unit_id`. The self-dogfood guide's Setup block works around this by deleting `.specere/` first — but a real user upgrading from a very early SpecERE install would also hit it.
-- **Fix.** `#[serde(default)]` on `MarkerEntry.unit_id`; infer from the containing `[[units]].unit_id` during deserialisation.
-- **Scope.** Small — ~20 LoC in `specere-core` + a regression test that loads the old-schema manifest cleanly.
-
-### 2. Motion-matrix fit from `(diff, test-delta)` pairs (Phase 5 tail)
-
-- **Why.** v0.5.0 shipped the coupling-edge suggester half of Phase 5; the motion-matrix fit half was deferred because it needs a durable per-commit test-history source (CI run records, not just event JSONL).
-- **Blocker.** No CI-result ingestion yet. A new `specere calibrate from-ci <path-to-junit.xml>` subcommand would unlock this.
-
-### 3. RBPF CLI routing
+### 4. RBPF CLI routing
 
 - **Why.** Library supports it; CLI picks PerSpecHMM or FactorGraphBP only. Users with cyclic coupling graphs get a "DAG required" error from the loader rather than auto-routing to RBPF.
 - **Fix.** Read a `[rbpf]` section from sensor-map.toml with cluster + particle config, branch `run_filter_run` accordingly.
 
-### 4. Long spec-ID table alignment
+### 5. Long spec-ID table alignment
 
 - Cosmetic — table column width fixed at 11 chars; JSON output is the programmatic path. Noted in self-dogfood phase-4 manual-test report M-16.
 

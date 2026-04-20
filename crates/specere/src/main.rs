@@ -699,7 +699,25 @@ fn run_filter_run(
         ctx.repo(),
         &specere_telemetry::event_store::QueryFilters::default(),
     )?;
-    let calibrations = compute_per_spec_calibrations(&specs, &all_events_for_calibration);
+    // FR-HM-052b — if a harness-graph exists on disk, pull cluster-level
+    // flakiness into the calibration formula. Absent graph → behaviour is
+    // bit-identical to pre-FR-HM-052b (no cluster compression).
+    let harness_graph_path = ctx.repo().join(".specere").join("harness-graph.toml");
+    let harness_graph = harness::node::HarnessGraph::load_or_default(&harness_graph_path)
+        .unwrap_or_else(|_| harness::node::HarnessGraph {
+            schema_version: 1,
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            comod_edges: Vec::new(),
+            cov_cooccur_edges: Vec::new(),
+            cofail_edges: Vec::new(),
+            cluster_report: None,
+        });
+    let calibrations = compute_per_spec_calibrations_with_clusters(
+        &specs,
+        &all_events_for_calibration,
+        &harness_graph,
+    );
     let mut sensor = specere_filter::PerSpecTestSensor::new();
     for (sid, cal) in &calibrations {
         sensor.insert(sid, *cal);
@@ -786,6 +804,120 @@ fn run_filter_run(
         }
     }
     Ok(())
+}
+
+/// FR-HM-052b extension — same as [`compute_per_spec_calibrations`] but
+/// also threads cluster-level flakiness (from `harness-graph.toml`) into
+/// `Calibration::from_cluster_evidence`. When the harness graph is
+/// empty, this falls back to the old per-spec-only formula so existing
+/// repos see bit-identical output.
+fn compute_per_spec_calibrations_with_clusters(
+    specs: &[specere_filter::hmm::SpecDescriptor],
+    events: &[specere_telemetry::Event],
+    harness_graph: &harness::node::HarnessGraph,
+) -> std::collections::HashMap<String, specere_filter::Calibration> {
+    use std::collections::HashMap;
+    // Short-circuit when there's no harness-graph data.
+    if harness_graph.nodes.is_empty() {
+        return compute_per_spec_calibrations(specs, events);
+    }
+
+    // Build per-cluster flakiness_score mean.
+    let mut cluster_flake_totals: HashMap<String, (f64, u32)> = HashMap::new();
+    for node in &harness_graph.nodes {
+        if let (Some(cid), Some(fs)) = (&node.cluster_id, node.flakiness_score) {
+            let entry = cluster_flake_totals.entry(cid.clone()).or_insert((0.0, 0));
+            entry.0 += fs;
+            entry.1 += 1;
+        }
+    }
+    let cluster_flake_mean: HashMap<String, f64> = cluster_flake_totals
+        .into_iter()
+        .filter(|(_, (_, n))| *n > 0)
+        .map(|(cid, (total, n))| (cid, total / n as f64))
+        .collect();
+
+    // Re-run per-spec mutation + smell aggregation (same as the baseline).
+    let mut caught: HashMap<String, u32> = HashMap::new();
+    let mut missed: HashMap<String, u32> = HashMap::new();
+    let mut smells: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+    for e in events {
+        let kind = e.attrs.get("event_kind").map(String::as_str);
+        let spec_id = e.attrs.get("spec_id").map(String::as_str);
+        match (kind, spec_id) {
+            (Some("mutation_result"), Some(sid)) => {
+                let outcome = e.attrs.get("outcome").map(String::as_str).unwrap_or("");
+                match outcome {
+                    "caught" => *caught.entry(sid.to_string()).or_insert(0) += 1,
+                    "missed" | "timeout" => *missed.entry(sid.to_string()).or_insert(0) += 1,
+                    _ => {}
+                }
+            }
+            (Some("test_smell_detected"), Some(sid)) => {
+                let fn_name = e.attrs.get("test_fn").map(String::as_str).unwrap_or("");
+                let smell = e.attrs.get("smell_kind").map(String::as_str).unwrap_or("");
+                smells
+                    .entry(sid.to_string())
+                    .or_default()
+                    .insert(format!("{fn_name}|{smell}"));
+            }
+            _ => {}
+        }
+    }
+
+    // Per-spec cluster flakiness = mean of flakiness_scores across every
+    // harness node whose path is a member of any support entry for that
+    // spec. If those nodes belong to clusters, we use the cluster-mean
+    // flakiness, not the raw node flakiness — captures "my tests share
+    // a cluster with known-flaky peers" even when the spec's own tests
+    // have no history yet.
+    let mut out: HashMap<String, specere_filter::Calibration> = HashMap::new();
+    for spec in specs {
+        let c = caught.get(&spec.id).copied().unwrap_or(0);
+        let m = missed.get(&spec.id).copied().unwrap_or(0);
+        let kill_rate = if c + m == 0 {
+            1.0
+        } else {
+            c as f64 / (c + m) as f64
+        };
+        let n_smells = smells.get(&spec.id).map(|s| s.len()).unwrap_or(0) as f64;
+        let smell_penalty = (1.0 - 0.15 * n_smells).clamp(0.3, 1.0);
+
+        // Find harness nodes whose path starts with any of this spec's
+        // support prefixes. Reuse the same directory-boundary semantics
+        // as `calibrate from-git` (v1.0.1 fix).
+        let mut peer_cluster_scores: Vec<f64> = Vec::new();
+        for node in &harness_graph.nodes {
+            let matches = spec.support.iter().any(|sup| {
+                let bare = sup.trim_end_matches('/');
+                let dir = format!("{bare}/");
+                node.path == bare || node.path.starts_with(dir.as_str())
+            });
+            if !matches {
+                continue;
+            }
+            if let Some(cid) = &node.cluster_id {
+                if let Some(mean) = cluster_flake_mean.get(cid) {
+                    peer_cluster_scores.push(*mean);
+                }
+            }
+        }
+        let cluster_flakiness = if peer_cluster_scores.is_empty() {
+            0.0
+        } else {
+            peer_cluster_scores.iter().sum::<f64>() / peer_cluster_scores.len() as f64
+        };
+
+        out.insert(
+            spec.id.clone(),
+            specere_filter::Calibration::from_cluster_evidence(
+                kill_rate,
+                smell_penalty,
+                cluster_flakiness,
+            ),
+        );
+    }
+    out
 }
 
 /// Aggregate `mutation_result` + `test_smell_detected` events per spec

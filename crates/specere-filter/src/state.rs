@@ -109,6 +109,37 @@ impl Calibration {
         }
     }
 
+    /// Extended constructor for FR-HM-052b: compresses quality further
+    /// when the spec's harness-cluster peers show systematic flakiness.
+    ///
+    /// ```text
+    /// q_base    = from_evidence formula
+    /// q_cluster = q_base × (1 − 0.5 × cluster_flakiness_score)
+    /// q_final   = clamp(0.3, q_cluster, 1.0)
+    /// ```
+    ///
+    /// `cluster_flakiness_score ∈ [0, 1]` is the mean flakiness across
+    /// the harness files that share a cluster with this spec's tests.
+    /// When the cluster is pristine (score = 0), output is bit-identical
+    /// to [`Self::from_evidence`]. When the cluster is maximally flaky
+    /// (score ≥ 0.5), quality is roughly halved — alphas compress hard
+    /// toward `α_unk`.
+    pub fn from_cluster_evidence(
+        kill_rate: f64,
+        smell_penalty: f64,
+        cluster_flakiness_score: f64,
+    ) -> Self {
+        let base = (kill_rate * smell_penalty).clamp(0.3, 1.0);
+        let cluster_penalty = (1.0 - 0.5 * cluster_flakiness_score.clamp(0.0, 1.0)).max(0.3);
+        let q = (base * cluster_penalty).clamp(0.3, 1.0);
+        Self {
+            quality: q,
+            alpha_sat: ALPHA_UNK_PROTO + q * (ALPHA_SAT_PROTO - ALPHA_UNK_PROTO),
+            alpha_vio: (1.0 - ALPHA_UNK_PROTO) + q * (ALPHA_VIO_PROTO - (1.0 - ALPHA_UNK_PROTO)),
+            alpha_unk: ALPHA_UNK_PROTO,
+        }
+    }
+
     /// Likelihood table for a test outcome under this calibration. Shape:
     /// log-probability for each status (`Unk, Sat, Vio`) given the outcome.
     /// Matches the prototype's numerical output at `quality = 1.0`.
@@ -242,6 +273,45 @@ mod calibration_tests {
         assert_abs_diff_eq!(c.quality, 0.6, epsilon = 1e-12);
         // α_sat = 0.55 + 0.6*0.37 = 0.772
         assert_abs_diff_eq!(c.alpha_sat, 0.772, epsilon = 1e-9);
+    }
+
+    #[test]
+    fn from_cluster_evidence_with_zero_flakiness_matches_from_evidence() {
+        // Cluster is pristine → identical to baseline formula.
+        let a = Calibration::from_evidence(0.8, 1.0);
+        let b = Calibration::from_cluster_evidence(0.8, 1.0, 0.0);
+        assert_abs_diff_eq!(a.quality, b.quality, epsilon = 1e-12);
+        assert_abs_diff_eq!(a.alpha_sat, b.alpha_sat, epsilon = 1e-12);
+        assert_abs_diff_eq!(a.alpha_vio, b.alpha_vio, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn from_cluster_evidence_compresses_quality_on_flaky_cluster() {
+        // cluster_flakiness_score = 0.4 → cluster_penalty = 1.0 − 0.5×0.4 = 0.8
+        // Base q = 0.8 × 1.0 = 0.8. Final q = 0.8 × 0.8 = 0.64.
+        let c = Calibration::from_cluster_evidence(0.8, 1.0, 0.4);
+        assert_abs_diff_eq!(c.quality, 0.64, epsilon = 1e-9);
+        // α_sat = 0.55 + 0.64 × 0.37 = 0.7868
+        assert_abs_diff_eq!(c.alpha_sat, 0.7868, epsilon = 1e-9);
+    }
+
+    #[test]
+    fn from_cluster_evidence_clamps_at_floor() {
+        // Worst-case: low kill_rate × max flakiness → clamps at 0.3.
+        let c = Calibration::from_cluster_evidence(0.1, 0.5, 1.0);
+        assert_abs_diff_eq!(c.quality, 0.3, epsilon = 1e-9);
+    }
+
+    #[test]
+    fn from_cluster_evidence_tolerates_out_of_range_flakiness() {
+        // Negative input should saturate at 0 (no penalty);
+        // > 1 should saturate at 1.
+        let a = Calibration::from_cluster_evidence(1.0, 1.0, -0.5);
+        let b = Calibration::from_cluster_evidence(1.0, 1.0, 0.0);
+        assert_abs_diff_eq!(a.quality, b.quality, epsilon = 1e-12);
+        let c = Calibration::from_cluster_evidence(1.0, 1.0, 2.0);
+        let d = Calibration::from_cluster_evidence(1.0, 1.0, 1.0);
+        assert_abs_diff_eq!(c.quality, d.quality, epsilon = 1e-12);
     }
 
     #[test]

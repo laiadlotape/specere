@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (v1.2.0 prep — cluster-belief priors wired into BBN)
+
+- **`Calibration::from_cluster_evidence()` + `specere filter run` integration** (FR-HM-052b). Closes the feedback loop from S6 clustering into the Bayesian filter. When `.specere/harness-graph.toml` contains `flakiness_score` + `cluster_id` per node, the per-spec calibration formula compresses further: `q_final = clamp(0.3, q_base × (1 − 0.5 × cluster_flakiness), 1.0)`. For each spec, the cluster-flakiness signal is the mean of cluster-wise means across every harness node whose path falls inside the spec's `support` entries — so a spec whose tests share a cluster with known-flaky peers sees its quality compressed even when its own tests have no history yet. When cluster_flakiness = 0 (pristine cluster), output is bit-identical to `from_evidence`. When the harness-graph is absent, the old per-spec-only formula is preserved bit-identically. 4 unit tests in `specere-filter::state` + 3 integration tests verifying the posterior-level effect on `specere filter run` (flaky-cluster-compresses, no-graph-preserves-baseline, clean-cluster-no-regression).
+
 ### Fixed (v1.2.0 prep — polish)
 
 - **Pre-v1.0 manifest backwards compatibility** (`docs/upcoming.md` §5). Old `.specere/manifest.toml` files (generated before v1.0) did not emit `unit_id` on each `MarkerEntry`, so loading them would crash with `missing field unit_id`. Fixed via `#[serde(default)]` on `MarkerEntry.unit_id` (accepts the field's absence without error) plus a backfill pass in `Manifest::load_or_init` that copies each marker's owning `UnitEntry.id` into its empty `unit_id`. Manifests saved by v1.0+ are unaffected — the backfill is a no-op on healthy data. 2 unit tests in `specere-manifest` verify old-schema load + round-trip preservation.
