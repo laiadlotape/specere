@@ -6,9 +6,38 @@
 
 ## Priority queue (highest first)
 
-**Nothing blocking a release.** All seven master-plan phases shipped through v1.0.3. The items below are polish-level follow-ups.
+**v1.2.0 harness-manager feature-complete on `main`.** All 30 FR-HM + 7 FR-EQ landed (PRs #88–#101). Queue below is for the release-cut + v2.0.0 GUI work.
 
-### 1. MarkerEntry schema backwards-compat
+### 0. Cut v1.0.5 + v1.2.0 release tag
+
+- **What.** First tag since v1.0.4. Combines the evidence-quality slice (FR-EQ-001..007) + harness-manager slice (FR-HM-001..072). Both accumulate under `[Unreleased]` in CHANGELOG.md today.
+- **Why deferred.** User chose "mega-release packaging" in the §10 harness-manager questionnaire — means no patch-level tag until every slice landed. That condition is now met.
+- **Action.** Bump workspace version in Cargo.toml from `1.0.4` → `1.2.0`; split the Unreleased section into `[1.2.0]` headers; tag + push; cargo-dist publishes.
+
+### 1. v2.0.0 GUI scaffolding (Tauri v2 + Sigma.js)
+
+- **Scope.** FR-HM-080..085 — six-screen MVP: Harness Graph, Spec Dashboard, Review Queue, Event Timeline, Relation Inspector, Calibration View.
+- **Stack.** Tauri v2 shell + `@sigma/core` + `graphology` for 10k+-node WebGL graph; React Flow for edge-inspector panels; reuses existing Axum `serve http` endpoints.
+- **Blocker.** Adds JS/TS build toolchain to the repo for the first time — worth user check-in before starting.
+- **Estimated size.** ~500 LoC Rust (new REST endpoints) + ~3000 LoC frontend.
+
+### 2. v1.0.6 bug-tracker bridge (FR-EQ-010..013)
+
+- **Scope.** `specere observe watch-issues` polls GitHub + Gitea; emits `bug_reported` events that feed the posterior with decay. LLM issue-to-spec triage via text-embedding-3-small.
+- **Size.** ~600 LoC; adds `octocrab` + a Gitea client.
+- **Blocker.** Needs user credentials — config surface to design.
+
+### 3. v1.1.0 LLM adversary agent (FR-EQ-020..024)
+
+- **Scope.** Budgeted ($20/mo cap) counter-test generator.
+- **Size.** ~800 LoC + ongoing LLM spend.
+
+### 4. FR-HM-052b cluster-belief priors wired into the BBN
+
+- **Why.** v1.2.0 emits the `[harness_cluster]` snippet but doesn't yet auto-wire `Calibration::from_cluster()` into `PerSpecTestSensor`. Users can paste the snippet for now; proper filter-side integration follows once real repos exercise the cluster assignments.
+- **Size.** ~200 LoC in `specere-filter::state`.
+
+### 5. MarkerEntry schema backwards-compat
 
 - **Why.** The specere repo's own committed `.specere/manifest.toml` uses an early pre-`unit_id` MarkerEntry schema. `specere status` / `verify` on a fresh clone of the upstream repo errors with `missing field unit_id`. The self-dogfood guide's Setup block works around this by deleting `.specere/` first — but a real user upgrading from a very early SpecERE install would also hit it.
 - **Fix.** `#[serde(default)]` on `MarkerEntry.unit_id`; infer from the containing `[[units]].unit_id` during deserialisation.
@@ -30,10 +59,19 @@
 
 ## Beyond the immediate queue
 
-Nothing in the master plan is open. v1.x is bug-fix + follow-ups only; v2.0 would be a deliberate schema-breaking re-plan.
+Nothing in the v1.0 master plan is open. v1.0.x line is bug-fix + evidence-quality; v1.2.0 is the harness manager (above); v2.0.0 GUI requires a deliberate JS toolchain decision; post-v2 queue is bug-tracker + LLM adversary.
 
 ## Recently closed
 
+- **v1.2.0 harness manager & inspector** (2026-04-20) — 30 FR-HM spread across 8 PRs; 358 workspace tests total. Plan at [`docs/harness-manager-plan.md`](./harness-manager-plan.md); proposal at [`docs/proposals/v3-harness-manager.md`](./proposals/v3-harness-manager.md).
+  - [PR #94](https://github.com/laiadlotape/specere/pull/94) S1+S2: `specere harness scan` + `specere harness provenance`.
+  - [PR #96](https://github.com/laiadlotape/specere/pull/96) S3: `specere harness history` — churn, age, hotspot, co-modification PPMI.
+  - [PR #97](https://github.com/laiadlotape/specere/pull/97) S4: `specere harness coverage` — LCOV → Jaccard → cov_cooccur edges.
+  - [PR #98](https://github.com/laiadlotape/specere/pull/98) S5: `specere harness flaky` — CI co-failure PPMI + Meta-style flakiness + DeFlaker filter.
+  - [PR #99](https://github.com/laiadlotape/specere/pull/99) S6: `specere harness cluster` — Louvain on the composite-edge graph.
+  - [PR #100](https://github.com/laiadlotape/specere/pull/100) FR-HM-060..061: `specere.harness.*` OTel supplementary semantic convention + completion events per verb.
+  - [PR #101](https://github.com/laiadlotape/specere/pull/101) FR-HM-070..072: `specere harness tui` — ratatui companion.
+- **v1.0.5 evidence-quality** (2026-04-19..20) — 7 FR-EQ across 5 PRs (#88–#92). Plan at [`docs/evidence-quality-plan.md`](./evidence-quality-plan.md); proposal at [`docs/proposals/v2-evidence-quality.md`](./proposals/v2-evidence-quality.md).
 - **phase-4-filter-engine main track** (2026-04-18, parent [#39](https://github.com/laiadlotape/specere/issues/39)) — `specere-filter` crate live; `specere filter run/status` wired; FR-P4-001, -003, -004, -006 closed. Execution plan archived at [`docs/history/phase4-execution-plan.md`](history/phase4-execution-plan.md).
   - [#40](https://github.com/laiadlotape/specere/issues/40) PerSpecHMM scaffold (PR #45).
   - [#41](https://github.com/laiadlotape/specere/issues/41) FactorGraphBP + coupling loader + cycle rejection (PR #46).

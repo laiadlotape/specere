@@ -2,13 +2,14 @@
 
 **Status.** Scope + direction approved via §10 questionnaire on `docs/proposals/v3-harness-manager.md` (2026-04-20).
 
-**Release shape (decided).**
+**v1.2.0 feature-complete on main (2026-04-20):** S1–S6 all shipped (PRs #94, #96, #97, #98, #99) + OTel semconv formalised (PR #100) + ratatui TUI companion shipped (PR #101). 358 workspace tests green. Release tag not yet cut — deferred per user's "mega-release packaging" choice so v1.2.0 ships with any final GUI-API endpoints or polish items.
+
+**Release shape (decided + current status).**
 
 | Release | Contents | Size | Heavy deps | Status |
 |---|---|---|---|---|
-| **v1.2.0** | S1–S6 mega-release (harness scan + provenance + history + coverage + flakiness + clustering) | ~2400 LoC | `cargo-llvm-cov` subprocess (opt-in per-repo via `[specere.coverage] enabled = true`) | 📋 Planning |
-| **v2.0.0** | Tauri v2 + Sigma.js GUI; 6-screen MVP | ~frontend + ~500 LoC Rust API layer | `@sigma/core`, `graphology`, `react-flow` via Tauri shell | 📋 Parallel track |
-| **TUI** | `specere harness tui` ratatui companion | ~600 LoC | `ratatui`, `crossterm` | 🌙 Night-and-weekend parallel track |
+| **v1.2.0** | S1–S6 (scan + provenance + history + coverage + flakiness + clustering) + semconv + TUI | ~2400 LoC + ~600 LoC TUI + ~550 LoC semconv/event-emit | `cargo-llvm-cov` subprocess (opt-in), `ratatui`, `crossterm`, `syn`, `sha2`, `hex` | ✅ **Landed on main** |
+| **v2.0.0** | Tauri v2 + Sigma.js GUI; 6-screen MVP | ~frontend + ~500 LoC Rust API layer | `@sigma/core`, `graphology`, `react-flow` via Tauri shell | 📋 Not yet started — substantial frontend scoping |
 | **v1.0.6** (post-v2) | Bug-tracker bridge (FR-EQ-010..013) | ~600 LoC | `octocrab`, `gitea-sdk` | ⏸ Queued |
 | **v1.1.0** (post-v2) | LLM adversary (FR-EQ-020..024) | ~800 LoC | paid LLM spend | ⏸ Queued |
 
@@ -25,17 +26,17 @@
 
 ## 1. FR numbering map
 
-| FR range | Slice | Ships in |
-|---|---|---|
-| FR-HM-001..004 | S1 — enumerate + categorise | v1.2.0 |
-| FR-HM-010..012 | S2 — provenance join | v1.2.0 |
-| FR-HM-020..022 | S3 — git version + co-modification | v1.2.0 |
-| FR-HM-030..033 | S4 — coverage co-execution | v1.2.0 |
-| FR-HM-040..043 | S5 — co-failure + flakiness | v1.2.0 |
-| FR-HM-050..052 | S6 — cluster + filter wiring | v1.2.0 |
-| FR-HM-060..061 | `specere.harness.*` OTel semconv | v1.2.0 (cross-cutting) |
-| FR-HM-070..072 | TUI companion | parallel |
-| FR-HM-080..085 | GUI v2.0.0 (6 screens) | parallel, v2.0.0 |
+| FR range | Slice | Ships in | Status |
+|---|---|---|---|
+| FR-HM-001..004 | S1 — enumerate + categorise | v1.2.0 | ✅ merged PR #94 |
+| FR-HM-010..012 | S2 — provenance join | v1.2.0 | ✅ merged PR #94 |
+| FR-HM-020..022 | S3 — git version + co-modification | v1.2.0 | ✅ merged PR #96 |
+| FR-HM-030..033 | S4 — coverage co-execution | v1.2.0 | ✅ merged PR #97 |
+| FR-HM-040..043 | S5 — co-failure + flakiness | v1.2.0 | ✅ merged PR #98 |
+| FR-HM-050..052 | S6 — cluster + filter wiring | v1.2.0 | ✅ merged PR #99 |
+| FR-HM-060..061 | `specere.harness.*` OTel semconv | v1.2.0 (cross-cutting) | ✅ merged PR #100 |
+| FR-HM-070..072 | TUI companion | parallel | ✅ merged PR #101 |
+| FR-HM-080..085 | GUI v2.0.0 (6 screens) | parallel, v2.0.0 | ⏸ not yet started |
 
 ---
 

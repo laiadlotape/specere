@@ -32,22 +32,50 @@ This uninstall-first design is SpecERE's core UX differentiator versus SpecKit, 
 
 ## Status
 
-**v1.0.3 on `main`** — all seven master-plan phases shipped. `specere calibrate from-git` surfaces real architectural coupling on live repos. Full Gate-A parity with the ReSearch Python prototype (bit-identical for PerSpecHMM + FactorGraphBP; tail-MAP-within-2-pp for RBPF).
+**v1.2.0 feature-complete on `main`** (not yet tagged) — the **harness manager & inspector** upgrade lands on top of the v1.0.5 evidence-quality work. All seven master-plan phases remain shipped. 358 workspace tests.
 
 Not on crates.io yet; install from the [GitHub Release](https://github.com/laiadlotape/specere/releases/latest) shell / powershell installer.
+
+### Master plan (v0.1 → v1.0.0)
 
 | Phase | What ships | Status |
 |---|---|---|
 | Phase 0 — doc rectification | README / CONTRIBUTING / CHANGELOG aligned to pivot | ✅ Shipped (2026-04-18) |
-| Phase 1 — bugfix release | Drop `--no-git`, SHA-diff gate, first `after_implement` hook, marker-fenced `.gitignore`, bit-identical remove, parse-safety | ✅ v0.2.0 (2026-04-18) — 9 FRs, 37/37 tests |
-| Phase 2 — native units | All 5 MVP units implemented end-to-end | ✅ Shipped (2026-04-18) — 5 units real; `specere init` composes the full scaffold; 65/65 tests |
-| Phase 3 — observe pipeline | Embedded OTLP receiver + `specere-observe` workflow | ✅ v0.4.0 (2026-04-18) — OTLP HTTP + gRPC + SQLite event store + 13 workflow-span hooks; FR-P3-001 through FR-P3-006 closed |
-| Phase 4 — filter engine | Rust port of the ReSearch prototype's three Bayesian filters | ✅ v0.4.0 / v0.4.0 follow-ups — PerSpecHMM + FactorGraphBP + RBPF + `specere filter run/status` CLI; FR-P4-001 through FR-P4-006 closed; Python-prototype parity bit-identical on Gate-A for PerSpecHMM + BP |
-| Phase 5 — motion-model calibration | `specere calibrate from-git` | ✅ v0.5.0 (partial) — coupling-edge suggester from git log co-modification; full motion-matrix fit deferred (needs test-history source) |
-| Phase 6 — cross-session persistence | Posterior survives across sessions | ✅ v1.0.0 — posterior bit-identical across process restarts; FR-P6 regression caught + fixed |
-| Phase 7 — v1.0.0 release | Final tear-down-and-rebuild dogfood on ReSearch | ✅ v1.0.0 (2026-04-18); v1.0.1 calibrate path-prefix fix; v1.0.2 RBPF/BP parity closes #42; v1.0.3 ears-lint parser hardening closes #61 |
+| Phase 1 — bugfix release | Drop `--no-git`, SHA-diff gate, first `after_implement` hook, marker-fenced `.gitignore`, bit-identical remove, parse-safety | ✅ v0.2.0 — 9 FRs, 37/37 tests |
+| Phase 2 — native units | All 5 MVP units implemented end-to-end | ✅ Shipped — 5 units real; `specere init` composes the full scaffold |
+| Phase 3 — observe pipeline | Embedded OTLP receiver + `specere-observe` workflow | ✅ v0.4.0 — OTLP HTTP + gRPC + SQLite event store + 13 workflow-span hooks |
+| Phase 4 — filter engine | Rust port of the ReSearch prototype's three Bayesian filters | ✅ PerSpecHMM + FactorGraphBP + RBPF; Python-prototype parity bit-identical on Gate-A for PerSpecHMM + BP |
+| Phase 5 — motion-model calibration | `specere calibrate from-git` + motion-from-evidence fit | ✅ v0.5.0 coupling-edge suggester + v1.0.5 `calibrate motion-from-evidence` |
+| Phase 6 — cross-session persistence | Posterior survives across sessions | ✅ v1.0.0 — posterior bit-identical across process restarts |
+| Phase 7 — v1.0.0 release | Tear-down-and-rebuild dogfood on ReSearch | ✅ v1.0.0; v1.0.1–1.0.4 bugfix follow-ups |
 
-**Release:** current stable is **v1.0.3**. See [CHANGELOG.md](./CHANGELOG.md) for the full history.
+### Post-v1.0 upgrades
+
+| Track | What ships | Status |
+|---|---|---|
+| **v1.0.5 evidence-quality** | Mutation-calibrated sensors, test-smell detector, motion-from-evidence fit, suspicious-SAT review queue. FR-EQ-001..007. | ✅ All 7 FRs on main (PRs #88–#92) |
+| **v1.2.0 harness manager** | Classify + inspect every test/bench/fuzz/mock/workflow file; provenance + git history + coverage + flakiness + Leiden clustering; OTel semconv; ratatui TUI. FR-HM-001..072. | ✅ All 30 FRs on main (PRs #94, #96–#101) |
+| v1.0.6 bug-tracker bridge | GitHub + Gitea issue → posterior. FR-EQ-010..013. | ⏸ Queued |
+| v1.1.0 LLM adversary | Budgeted counter-test generator. FR-EQ-020..024. | ⏸ Queued |
+| v2.0.0 GUI | Tauri v2 + Sigma.js 6-screen inspector. FR-HM-080..085. | ⏸ Not yet started |
+
+### Harness-manager CLI (v1.2.0)
+
+The harness tree is reachable via a single `specere harness` command group:
+
+```
+specere harness scan                    # classify every file into nine categories
+specere harness provenance              # link files to /speckit-* verbs + git commits
+specere harness history                 # churn, age, hotspot score, co-modification PPMI
+specere harness coverage --from-lcov-dir <path>   # per-test Jaccard on line hits
+specere harness flaky --from-runs <path>          # co-failure PPMI + Meta flakiness
+specere harness cluster --emit-to-sensor-map      # Louvain community detection
+specere harness tui                     # interactive ratatui inspector
+```
+
+Every verb writes into `.specere/harness-graph.toml` and emits a `harness_*_completed` event to `.specere/events.jsonl` per the [OTel supplementary semantic convention](docs/otel-specere-semconv.md).
+
+**Release:** current stable is **v1.0.4** on [GitHub Releases](https://github.com/laiadlotape/specere/releases). v1.0.5 + v1.2.0 entries accumulate under `[Unreleased]` in [CHANGELOG.md](./CHANGELOG.md) and will ship as one tagged release once the user calls the cut.
 
 **Test plans for contributors:**
 - [`docs/test-plans/self-dogfood-guide.md`](docs/test-plans/self-dogfood-guide.md) — 38-scenario CLI-driven smoke suite, ~25 min.
