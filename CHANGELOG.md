@@ -4,6 +4,10 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Fixed (v1.2.0 prep — BP runaway to p_vio=1.0 on pass-only streams)
+
+- **Fix `specere filter` converging to `p_vio=1.0` on specs that received only `outcome=pass` events** (closes #67). Root cause: the FactorGraphBP message-normalisation step used arithmetic-mean centring (`msg -= mean(msg)`), which left a small VIO-positive bias per iteration whenever the source belief was near-uniform — a direct consequence of log-sum-exp being nonlinear with respect to the `(Vio, Vio) = ln(κ)` pair factor. Under hundreds of pass-only events that bias compounded until `p_vio` ran away to 1.0 on low-evidence specs downstream in the coupling DAG. Fix: normalise the message via logsumexp instead (`msg -= logsumexp(msg)`), so `sum(exp(msg)) == 1` and repeated BP sweeps no longer drift monotonically. Gate-A parity preserved — BP still matches the Python prototype bit-for-bit on the fixture trace. New regression test `pass_only_stream_does_not_saturate_p_vio` — 5 specs in a DAG, 100 pass events each, asserts every spec stays with `p_vio < 0.1` and `p_sat > 0.4`.
+
 ### Fixed (v1.2.0 prep — `filter status` column alignment)
 
 - **`specere filter status` table dynamically sizes the `spec_id` column** (`docs/upcoming.md` §4 closure). The column width was hard-coded to 11 chars, which truncated or mis-aligned longer domain-prefixed ids (`FR-auth-alpha`, `FR-EDITOR-001`, `FR-HM-050`). The fix computes `max(header_len=7, longest_id_len, capped at 64)` dynamically per run, so the header + dash separator + every data row align column-for-column. Short-id tables keep their historical visual shape. 3 regression tests: short-id baseline, long-id column-widening, empty-posterior friendly path.
