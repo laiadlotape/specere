@@ -282,11 +282,13 @@ mod tests {
                 version_metrics: None,
                 coverage_hash: None,
                 flakiness_score: None,
+                cluster_id: None,
             }],
             edges: Vec::new(),
             comod_edges: Vec::new(),
             cov_cooccur_edges: Vec::new(),
             cofail_edges: Vec::new(),
+            cluster_report: None,
         }
     }
 

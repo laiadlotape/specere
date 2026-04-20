@@ -95,6 +95,10 @@ pub struct HarnessFile {
     /// FR-EQ-004.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flakiness_score: Option<f64>,
+    /// Populated by `specere harness cluster` (S6). `C01`, `C02`, … —
+    /// deterministic with a fixed seed; `None` until clustering runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cluster_id: Option<String>,
 }
 
 /// Per-file git-history metrics (FR-HM-020). Computed by
@@ -203,6 +207,9 @@ pub struct HarnessGraph {
     /// Populated by `specere harness flaky` (FR-HM-041).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cofail_edges: Vec<crate::harness::flaky::CofailEdge>,
+    /// Populated by `specere harness cluster` (FR-HM-050).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cluster_report: Option<crate::harness::cluster::ClusterReport>,
 }
 
 impl HarnessGraph {
@@ -249,6 +256,7 @@ impl HarnessGraph {
                 comod_edges: Vec::new(),
                 cov_cooccur_edges: Vec::new(),
                 cofail_edges: Vec::new(),
+                cluster_report: None,
             });
         }
         let raw =
@@ -298,11 +306,13 @@ mod tests {
                 version_metrics: None,
                 coverage_hash: None,
                 flakiness_score: None,
+                cluster_id: None,
             }],
             edges: vec![],
             comod_edges: vec![],
             cov_cooccur_edges: vec![],
             cofail_edges: vec![],
+            cluster_report: None,
         };
         let tmp = tempfile::NamedTempFile::new().unwrap();
         g.write_atomic(tmp.path()).unwrap();
@@ -325,6 +335,7 @@ mod tests {
                 version_metrics: None,
                 coverage_hash: None,
                 flakiness_score: None,
+                cluster_id: None,
             })
             .collect();
         let mut g1 = HarnessGraph {
@@ -334,6 +345,7 @@ mod tests {
             comod_edges: Vec::new(),
             cov_cooccur_edges: Vec::new(),
             cofail_edges: Vec::new(),
+            cluster_report: None,
         };
         let mut g2 = HarnessGraph {
             schema_version: 1,
@@ -342,6 +354,7 @@ mod tests {
             comod_edges: Vec::new(),
             cov_cooccur_edges: Vec::new(),
             cofail_edges: Vec::new(),
+            cluster_report: None,
         };
         let t1 = tempfile::NamedTempFile::new().unwrap();
         let t2 = tempfile::NamedTempFile::new().unwrap();

@@ -19,6 +19,7 @@
 //! This file orchestrates; the heavy lifting lives in submodules.
 
 pub mod classify;
+pub mod cluster;
 pub mod coverage;
 pub mod dep_info;
 pub mod flaky;
@@ -56,6 +57,7 @@ pub fn run_scan(ctx: &specere_core::Ctx, format: &str) -> Result<()> {
         comod_edges: Vec::new(),
         cov_cooccur_edges: Vec::new(),
         cofail_edges: Vec::new(),
+        cluster_report: None,
     };
 
     let out_path = output_path(repo);
@@ -118,6 +120,52 @@ pub fn run_provenance(ctx: &specere_core::Ctx) -> Result<()> {
             "  {} file(s) flagged: agent-created, human-modified (advisory — no block)",
             report.divergence_detected
         );
+    }
+    Ok(())
+}
+
+/// CLI entry — `specere harness cluster`. Runs Louvain on the combined
+/// edge graph, writes per-node `cluster_id`s and a cluster-summary
+/// table back to `harness-graph.toml`. Optionally emits a
+/// `[harness_cluster]` sensor-map snippet to stdout for the user to
+/// paste into `.specere/sensor-map.toml` — this is how downstream
+/// filters pick up cluster-belief priors (FR-HM-052).
+pub fn run_cluster(ctx: &specere_core::Ctx, seed: u64, emit_to_sensor_map: bool) -> Result<()> {
+    let repo = ctx.repo();
+    let out_path = output_path(repo);
+    let mut graph = node::HarnessGraph::load_or_default(&out_path)
+        .with_context(|| format!("read {}", out_path.display()))?;
+    if graph.nodes.is_empty() {
+        println!(
+            "specere harness cluster: no harness-graph.toml found — run `specere harness scan` first"
+        );
+        return Ok(());
+    }
+
+    let mix = cluster::EdgeMix::default();
+    let report = cluster::enrich(&mut graph, mix, seed);
+    let node_total = graph.nodes.len();
+    graph.cluster_report = Some(report.clone());
+    graph
+        .write_atomic(&out_path)
+        .with_context(|| format!("write {}", out_path.display()))?;
+
+    println!(
+        "specere harness cluster: {} cluster(s) over {} node(s); total modularity = {:.3} (algo={}, seed={})",
+        report.n_clusters, node_total, report.total_modularity, report.algo, report.seed,
+    );
+    for c in &report.clusters {
+        println!(
+            "  {}  members={}  internal_weight={:.3}  modularity={:.3}",
+            c.id,
+            c.members.len(),
+            c.internal_weight,
+            c.modularity
+        );
+    }
+    if emit_to_sensor_map {
+        println!();
+        println!("{}", cluster::to_sensor_map_snippet(&report));
     }
     Ok(())
 }
