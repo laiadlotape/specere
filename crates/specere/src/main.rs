@@ -1078,11 +1078,27 @@ fn run_filter_status(
             println!("{}", serde_json::to_string_pretty(&entries)?);
         }
         "table" => {
-            println!("spec_id      p_unk   p_sat   p_vio   entropy  last_updated");
-            println!("-----------  ------  ------  ------  -------  --------------------");
+            // Spec-id column width = max(header, longest spec_id), capped
+            // at 64 to avoid hostile-input blowups. Previously fixed at
+            // 11, which truncated domain-prefixed FR ids (`FR-auth-001`,
+            // `FR-EQ-004`). See docs/upcoming.md §4 closure.
+            const HEADER: &str = "spec_id";
+            let id_width = entries
+                .iter()
+                .map(|e| e.spec_id.len())
+                .chain(std::iter::once(HEADER.len()))
+                .max()
+                .unwrap_or(HEADER.len())
+                .clamp(HEADER.len(), 64);
+            let id_dashes: String = "-".repeat(id_width);
+            println!(
+                "{:<id_width$}  p_unk   p_sat   p_vio   entropy  last_updated",
+                HEADER
+            );
+            println!("{id_dashes}  ------  ------  ------  -------  --------------------");
             for e in &entries {
                 println!(
-                    "{:<11}  {:>6.3}  {:>6.3}  {:>6.3}  {:>7.4}  {}",
+                    "{:<id_width$}  {:>6.3}  {:>6.3}  {:>6.3}  {:>7.4}  {}",
                     e.spec_id, e.p_unk, e.p_sat, e.p_vio, e.entropy, e.last_updated
                 );
             }
