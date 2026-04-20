@@ -32,12 +32,7 @@
 - **Scope.** Budgeted ($20/mo cap) counter-test generator.
 - **Size.** ~800 LoC + ongoing LLM spend.
 
-### 4. RBPF CLI routing
-
-- **Why.** Library supports it; CLI picks PerSpecHMM or FactorGraphBP only. Users with cyclic coupling graphs get a "DAG required" error from the loader rather than auto-routing to RBPF.
-- **Fix.** Read a `[rbpf]` section from sensor-map.toml with cluster + particle config, branch `run_filter_run` accordingly.
-
-### 5. Long spec-ID table alignment
+### 4. Long spec-ID table alignment
 
 - Cosmetic — table column width fixed at 11 chars; JSON output is the programmatic path. Noted in self-dogfood phase-4 manual-test report M-16.
 
