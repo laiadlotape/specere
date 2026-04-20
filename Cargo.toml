@@ -41,7 +41,7 @@ regex = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 axum = "0.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "net"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"], default-features = false }
 tonic = { version = "0.14", features = ["transport"] }
 opentelemetry-proto = { version = "0.31", features = ["gen-tonic", "trace", "logs"] }
 prost = "0.14"

@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+mod adversary;
 mod evaluate;
 mod harness;
 mod smells;
@@ -129,6 +130,43 @@ enum Command {
     Harness {
         #[command(subcommand)]
         kind: HarnessKind,
+    },
+    /// LLM adversary agent — propose spec-violating shell scripts,
+    /// run them in a sandbox, minimize counter-examples. FR-EQ-020..024.
+    Adversary {
+        #[command(subcommand)]
+        kind: AdversaryKind,
+    },
+}
+
+#[derive(Subcommand)]
+enum AdversaryKind {
+    /// One iterative falsification run for a single spec. FR-EQ-020.
+    Run {
+        /// Target spec id (e.g. `FR-EQ-007`).
+        #[arg(long)]
+        spec: String,
+        /// LLM provider. `mock` is deterministic + free (CI-safe); the
+        /// real providers require `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+        #[arg(long, default_value = "mock")]
+        provider: String,
+        /// Max iterations of (ask LLM → sandbox run → minimize). FR-EQ-022
+        /// requires ≥ 3 for `counterexample_found`; one-shot findings are
+        /// recorded as `counterexample_candidate` only.
+        #[arg(long, default_value_t = 5)]
+        max_iterations: u32,
+        /// Sandbox mode: `none` (trust-provider; only with `mock` in CI),
+        /// `rlimit` (default; CPU + vmem caps), `bubblewrap` (full
+        /// namespace isolation). FR-EQ-024.
+        #[arg(long, default_value = "rlimit")]
+        sandbox: String,
+        /// Override the per-month USD cap. Default 20.0.
+        #[arg(long)]
+        cap_usd: Option<f64>,
+        /// Test-only — load canned `iter_<N>.sh` files from this dir
+        /// instead of making real LLM calls. Implies `--provider mock`.
+        #[arg(long, value_name = "PATH", hide = true)]
+        from_fixture: Option<PathBuf>,
     },
 }
 
@@ -489,6 +527,24 @@ fn main() -> Result<()> {
                 emit_to_sensor_map,
             } => harness::run_cluster(&ctx, seed, emit_to_sensor_map),
             HarnessKind::Tui { headless_frames } => harness::run_tui(&ctx, headless_frames),
+        },
+        Command::Adversary { kind } => match kind {
+            AdversaryKind::Run {
+                spec,
+                provider,
+                max_iterations,
+                sandbox,
+                cap_usd,
+                from_fixture,
+            } => adversary::run_cli(
+                &ctx,
+                spec,
+                provider,
+                max_iterations,
+                sandbox,
+                from_fixture,
+                cap_usd,
+            ),
         },
     };
 
