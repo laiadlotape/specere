@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+mod bug_tracker;
 mod evaluate;
 mod harness;
 mod smells;
@@ -338,6 +339,31 @@ enum ObserveKind {
         #[arg(long, default_value = "table")]
         format: String,
     },
+    /// Poll a bug-tracker (GitHub or Gitea) and emit one
+    /// `bug_reported` event per actionable issue. FR-EQ-010..013.
+    WatchIssues {
+        /// Issue-tracker provider.
+        #[arg(long, default_value = "github")]
+        provider: String,
+        /// Repository identifier `owner/name`. Required unless
+        /// `--from-fixture` is given.
+        #[arg(long)]
+        repo: Option<String>,
+        /// Test-only — read a canned JSON response from this file
+        /// instead of calling the live API.
+        #[arg(long, value_name = "PATH", hide = true)]
+        from_fixture: Option<PathBuf>,
+        /// Polling interval seconds (reserved for the future daemon mode;
+        /// `--once` ignores this value).
+        #[arg(long, default_value_t = 600)]
+        interval: u64,
+        /// One-shot: fetch-and-exit. Default behaviour today.
+        #[arg(long, default_value_t = true)]
+        once: bool,
+        /// Reserved for future daemon mode; currently errors out.
+        #[arg(long, default_value_t = false)]
+        daemon: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -433,6 +459,22 @@ fn main() -> Result<()> {
                 limit,
                 format,
             } => run_observe_query(&ctx, since, signal, source, limit, &format),
+            ObserveKind::WatchIssues {
+                provider,
+                repo,
+                from_fixture,
+                interval,
+                once,
+                daemon,
+            } => bug_tracker::run_watch_issues(
+                &ctx,
+                &provider,
+                repo,
+                from_fixture,
+                interval,
+                once,
+                daemon,
+            ),
         },
         Command::Serve {
             config,
@@ -879,6 +921,7 @@ fn compute_per_spec_calibrations_with_clusters(
             _ => {}
         }
     }
+    let bug_pressure = aggregate_bug_pressure(events);
 
     // Per-spec cluster flakiness = mean of flakiness_scores across every
     // harness node whose path is a member of any support entry for that
@@ -896,7 +939,11 @@ fn compute_per_spec_calibrations_with_clusters(
             c as f64 / (c + m) as f64
         };
         let n_smells = smells.get(&spec.id).map(|s| s.len()).unwrap_or(0) as f64;
-        let smell_penalty = (1.0 - 0.15 * n_smells).clamp(0.3, 1.0);
+        let base_smell_penalty = (1.0 - 0.15 * n_smells).clamp(0.3, 1.0);
+        // FR-EQ-012: bug pressure compresses smell_penalty further. A
+        // single critical bug yields ≈0.30 pressure → multiplier 0.70.
+        let bug_mult = 1.0 - bug_pressure.get(&spec.id).copied().unwrap_or(0.0);
+        let smell_penalty = (base_smell_penalty * bug_mult).clamp(0.3, 1.0);
 
         // Find harness nodes whose path starts with any of this spec's
         // support prefixes. Reuse the same directory-boundary semantics
@@ -971,6 +1018,8 @@ fn compute_per_spec_calibrations(
             _ => {}
         }
     }
+    // FR-EQ-012 bug-signal aggregation shared with the cluster-aware path.
+    let bug_pressure = aggregate_bug_pressure(events);
 
     let mut out: std::collections::HashMap<String, specere_filter::Calibration> =
         std::collections::HashMap::new();
@@ -984,13 +1033,51 @@ fn compute_per_spec_calibrations(
             c as f64 / (c + m) as f64
         };
         let n_smells = smells.get(&spec.id).map(|s| s.len()).unwrap_or(0) as f64;
-        let smell_penalty = (1.0 - 0.15 * n_smells).clamp(0.3, 1.0);
+        let base_smell_penalty = (1.0 - 0.15 * n_smells).clamp(0.3, 1.0);
+        let bug_mult = 1.0 - bug_pressure.get(&spec.id).copied().unwrap_or(0.0);
+        let smell_penalty = (base_smell_penalty * bug_mult).clamp(0.3, 1.0);
         out.insert(
             spec.id.clone(),
             specere_filter::Calibration::from_evidence(kill_rate, smell_penalty),
         );
     }
     out
+}
+
+/// FR-EQ-012 — aggregate `bug_reported` events per spec into a single
+/// saturating pressure value in `[0, 1]`. Used by both the cluster-aware
+/// and non-cluster calibration paths.
+fn aggregate_bug_pressure(
+    events: &[specere_telemetry::Event],
+) -> std::collections::HashMap<String, f64> {
+    use std::collections::HashMap;
+    let mut pressure: HashMap<String, f64> = HashMap::new();
+    for e in events {
+        if e.attrs.get("event_kind").map(String::as_str) != Some("bug_reported") {
+            continue;
+        }
+        let Some(sid) = e.attrs.get("spec_id").map(String::as_str) else {
+            continue;
+        };
+        if sid == "unknown" {
+            continue;
+        }
+        let severity = e
+            .attrs
+            .get("severity")
+            .map(String::as_str)
+            .unwrap_or("minor");
+        let state = e.attrs.get("state").map(String::as_str).unwrap_or("open");
+        let age = e
+            .attrs
+            .get("age_days")
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        let signal = specere_filter::Calibration::bug_signal_decayed(severity, state, age);
+        let entry = pressure.entry(sid.to_string()).or_insert(0.0);
+        *entry = 1.0 - (1.0 - *entry) * (1.0 - signal);
+    }
+    pressure
 }
 
 /// Thin enum so `run_filter_run` can dispatch to HMM, BP, or RBPF

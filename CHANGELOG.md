@@ -4,6 +4,12 @@ All notable changes to SpecERE will be documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added (v1.0.6 — bug-tracker bridge)
+
+- **`specere observe watch-issues --provider github|gitea --repo owner/name` + `bug_reported` events** (FR-EQ-010..013). Polls the issues endpoint of GitHub or Gitea (same JSON shape for the fields we consume), filters out `question`/`docs`/`duplicate`/`not-planned` labels and closed-without-PR, triages each remaining issue to a `spec_id` via heuristic path-token matching against each spec's `support` set (LLM reranking deferred), and emits one `bug_reported` event per actionable issue with attrs `{spec_id, issue_url, severity=critical|major|minor, state=open|closed, age_days, triage_confidence, provider, issue_number}`. Severity derived from issue labels (`critical`/`blocker`/`p0` → critical; `bug`/`regression`/`p1` → major; else minor). Hidden `--from-fixture <path>` flag reads a canned JSON body for CI-safe tests.
+- **`Calibration::bug_signal_decayed(severity, state, age_days)`** — new associated function that converts a `bug_reported` event into VIO-pressure. Base magnitudes: critical=0.30, major=0.15, minor=0.05. Exponential decay with 50-day half-life (open) / 25-day half-life (closed), per Kim '07 empirical findings. Folded into `compute_per_spec_calibrations` + `..._with_clusters` via a shared `aggregate_bug_pressure` helper that stacks multiple bugs per spec via `1 − Π(1 − signal)` and compresses `smell_penalty` by `(1 − pressure)`. When no `bug_reported` events exist, behaviour is bit-identical to pre-FR-EQ-012.
+- Workspace dep: `reqwest` gains `blocking` feature (previously async-only via tonic). Live HTTP path requires `GITHUB_TOKEN` or `GITEA_TOKEN` env var — errors cleanly if absent. 9 unit tests + 3 integration tests (including end-to-end filter-calibration effect on `specere filter run`).
+
 ### Fixed (v1.2.0 prep — `filter status` column alignment)
 
 - **`specere filter status` table dynamically sizes the `spec_id` column** (`docs/upcoming.md` §4 closure). The column width was hard-coded to 11 chars, which truncated or mis-aligned longer domain-prefixed ids (`FR-auth-alpha`, `FR-EDITOR-001`, `FR-HM-050`). The fix computes `max(header_len=7, longest_id_len, capped at 64)` dynamically per run, so the header + dash separator + every data row align column-for-column. Short-id tables keep their historical visual shape. 3 regression tests: short-id baseline, long-id column-widening, empty-posterior friendly path.

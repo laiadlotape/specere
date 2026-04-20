@@ -11,7 +11,7 @@
 | Release | Slice | Scope | FRs | Status |
 |---|---|---|---|---|
 | **v1.0.5** | Mutation-calibrated sensors + test-smell detector + motion-matrix-fit + suspicious-SAT review queue | ~900 LoC, no external APIs or paid services | FR-EQ-001 … FR-EQ-007 | ✅ **Landed on main** |
-| **v1.0.6** | Bug-tracker bridge (GitHub + Gitea) | ~600 LoC, requires credentials, light LLM spend for triage (embeddings) | FR-EQ-010 … FR-EQ-013 | ⏸ Deferred pending user direction |
+| **v1.0.6** | Bug-tracker bridge (GitHub + Gitea) | ~600 LoC, requires credentials, heuristic-only triage (LLM reranking deferred) | FR-EQ-010 … FR-EQ-013 | ✅ **Landed on main** (watch-issues + bug_reported decay; cursor + LLM triage deferred to follow-ups) |
 | **v1.1.0** | LLM adversary agent with hard $20/mo budget | ~800 LoC + ongoing LLM spend | FR-EQ-020 … FR-EQ-024 | ⏸ Deferred pending user direction |
 | **v1.2.0+** | Harness manager + inspector (new proposal) | ~1200 LoC for slices S1–S3 | FR-HM-NNN (not yet numbered) | 📝 Proposal under review (PR #93) |
 
