@@ -19,6 +19,7 @@
 //! This file orchestrates; the heavy lifting lives in submodules.
 
 pub mod classify;
+pub mod coverage;
 pub mod dep_info;
 pub mod history;
 pub mod node;
@@ -52,6 +53,7 @@ pub fn run_scan(ctx: &specere_core::Ctx, format: &str) -> Result<()> {
         nodes,
         edges,
         comod_edges: Vec::new(),
+        cov_cooccur_edges: Vec::new(),
     };
 
     let out_path = output_path(repo);
@@ -115,6 +117,59 @@ pub fn run_provenance(ctx: &specere_core::Ctx) -> Result<()> {
             report.divergence_detected
         );
     }
+    Ok(())
+}
+
+/// CLI entry — `specere harness coverage`. Reads
+/// `.specere/harness-graph.toml`, loads per-test LCOV files (either from
+/// a test-supplied fixture directory via `--from-lcov-dir`, or from a
+/// live `cargo llvm-cov` run), computes per-test bitvectors + Jaccard
+/// similarity, and emits `cov_cooccur` edges. Writes back to the graph.
+pub fn run_coverage(
+    ctx: &specere_core::Ctx,
+    from_lcov_dir: Option<PathBuf>,
+    threshold: f64,
+) -> Result<()> {
+    let repo = ctx.repo();
+    let out_path = output_path(repo);
+    let mut graph = node::HarnessGraph::load_or_default(&out_path)
+        .with_context(|| format!("read {}", out_path.display()))?;
+    if graph.nodes.is_empty() {
+        println!(
+            "specere harness coverage: no harness-graph.toml found — run `specere harness scan` first"
+        );
+        return Ok(());
+    }
+
+    let coverages = if let Some(dir) = from_lcov_dir {
+        coverage::load_lcov_dir(&dir)
+            .with_context(|| format!("load lcov from {}", dir.display()))?
+    } else {
+        // Live run: single aggregate LCOV for now; per-test granularity
+        // is a follow-up in S4b once we want to pay the wall-clock cost.
+        match coverage::run_live_coverage(repo) {
+            Ok(agg) => {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert("aggregate".to_string(), agg);
+                m
+            }
+            Err(e) => {
+                eprintln!("specere harness coverage: {e:#}");
+                return Ok(());
+            }
+        }
+    };
+
+    let report = coverage::enrich(&mut graph, &coverages, threshold);
+    let node_total = graph.nodes.len();
+    graph
+        .write_atomic(&out_path)
+        .with_context(|| format!("write {}", out_path.display()))?;
+
+    println!(
+        "specere harness coverage: enriched {}/{} node(s); {} cov_cooccur edge(s) (threshold={:.2})",
+        report.nodes_enriched, node_total, report.edges_emitted, threshold
+    );
     Ok(())
 }
 

@@ -84,6 +84,11 @@ pub struct HarnessFile {
     /// when the repo has no git history (shallow clone, fresh init).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version_metrics: Option<VersionMetrics>,
+    /// Populated by `specere harness coverage` (S4). `None` on first scan
+    /// or when coverage collection is disabled (`[specere.coverage]
+    /// enabled = false`). 16-char hex digest of the test's bitvector.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coverage_hash: Option<String>,
 }
 
 /// Per-file git-history metrics (FR-HM-020). Computed by
@@ -186,6 +191,9 @@ pub struct HarnessGraph {
     /// Populated by `specere harness history` (FR-HM-021).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub comod_edges: Vec<ComodEdge>,
+    /// Populated by `specere harness coverage` (FR-HM-032).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cov_cooccur_edges: Vec<crate::harness::coverage::CovCooccurEdge>,
 }
 
 impl HarnessGraph {
@@ -195,6 +203,8 @@ impl HarnessGraph {
         self.edges
             .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
         self.comod_edges
+            .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
+        self.cov_cooccur_edges
             .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
         let serialised = toml::to_string_pretty(self).context("serialise harness graph")?;
         if let Some(parent) = path.parent() {
@@ -226,6 +236,7 @@ impl HarnessGraph {
                 nodes: Vec::new(),
                 edges: Vec::new(),
                 comod_edges: Vec::new(),
+                cov_cooccur_edges: Vec::new(),
             });
         }
         let raw =
@@ -273,9 +284,11 @@ mod tests {
                 test_names: vec!["test_a".into(), "test_b".into()],
                 provenance: None,
                 version_metrics: None,
+                coverage_hash: None,
             }],
             edges: vec![],
             comod_edges: vec![],
+            cov_cooccur_edges: vec![],
         };
         let tmp = tempfile::NamedTempFile::new().unwrap();
         g.write_atomic(tmp.path()).unwrap();
@@ -296,6 +309,7 @@ mod tests {
                 test_names: Vec::new(),
                 provenance: None,
                 version_metrics: None,
+                coverage_hash: None,
             })
             .collect();
         let mut g1 = HarnessGraph {
@@ -303,12 +317,14 @@ mod tests {
             nodes: nodes.clone(),
             edges: Vec::new(),
             comod_edges: Vec::new(),
+            cov_cooccur_edges: Vec::new(),
         };
         let mut g2 = HarnessGraph {
             schema_version: 1,
             nodes: nodes.into_iter().rev().collect(),
             edges: Vec::new(),
             comod_edges: Vec::new(),
+            cov_cooccur_edges: Vec::new(),
         };
         let t1 = tempfile::NamedTempFile::new().unwrap();
         let t2 = tempfile::NamedTempFile::new().unwrap();
