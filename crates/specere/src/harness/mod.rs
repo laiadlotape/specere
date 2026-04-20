@@ -28,9 +28,38 @@ pub mod node;
 pub mod provenance;
 pub mod scan;
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+
+/// FR-HM-061 — emit a `harness_*_completed` summary event to the event
+/// store after each CLI verb. Attributes follow
+/// `docs/otel-specere-semconv.md` §5.3. Failures to emit are non-fatal —
+/// we never fail the user's CLI because telemetry couldn't write.
+fn emit_completion_event(
+    ctx: &specere_core::Ctx,
+    event_kind: &'static str,
+    verb: &'static str,
+    mut attrs: BTreeMap<String, String>,
+) {
+    attrs.insert("event_kind".into(), event_kind.into());
+    attrs.insert("specere.schema_version".into(), "1".into());
+    attrs.insert(
+        "specere.cli_version".into(),
+        env!("CARGO_PKG_VERSION").into(),
+    );
+    attrs.insert("specere.harness.verb".into(), verb.into());
+    let event = specere_telemetry::Event {
+        ts: specere_telemetry::event_store::now_rfc3339(),
+        source: format!("specere-harness-{verb}"),
+        signal: "traces".into(),
+        name: Some(format!("harness {verb} completed")),
+        feature_dir: None,
+        attrs,
+    };
+    let _ = specere_telemetry::record(ctx, event);
+}
 
 /// CLI entry — `specere harness scan [--format summary|json|toml]`.
 /// Writes `.specere/harness-graph.toml` with classified nodes + any
@@ -80,6 +109,18 @@ pub fn run_scan(ctx: &specere_core::Ctx, format: &str) -> Result<()> {
             print_summary(&graph);
         }
     }
+
+    // FR-HM-061 — summary event.
+    let mut attrs = BTreeMap::new();
+    attrs.insert(
+        "specere.harness.n_files".into(),
+        graph.nodes.len().to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_edges.direct_use".into(),
+        graph.edges.len().to_string(),
+    );
+    emit_completion_event(ctx, "harness_scan_completed", "scan", attrs);
     Ok(())
 }
 
@@ -121,6 +162,24 @@ pub fn run_provenance(ctx: &specere_core::Ctx) -> Result<()> {
             report.divergence_detected
         );
     }
+    let mut attrs = BTreeMap::new();
+    attrs.insert(
+        "specere.harness.n_files".into(),
+        graph.nodes.len().to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_files_enriched".into(),
+        report.total_enriched.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_span_attributed".into(),
+        report.span_attributed.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_git_attributed".into(),
+        report.git_attributed.to_string(),
+    );
+    emit_completion_event(ctx, "harness_provenance_completed", "provenance", attrs);
     Ok(())
 }
 
@@ -167,6 +226,30 @@ pub fn run_cluster(ctx: &specere_core::Ctx, seed: u64, emit_to_sensor_map: bool)
         println!();
         println!("{}", cluster::to_sensor_map_snippet(&report));
     }
+    let mut attrs = BTreeMap::new();
+    attrs.insert("specere.harness.n_files".into(), node_total.to_string());
+    attrs.insert(
+        "specere.harness.n_clusters".into(),
+        report.n_clusters.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.total_modularity".into(),
+        format!("{:.4}", report.total_modularity),
+    );
+    attrs.insert("specere.harness.cluster_seed".into(), seed.to_string());
+    attrs.insert(
+        "specere.harness.n_edges.cov_cooccur".into(),
+        graph.cov_cooccur_edges.len().to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_edges.comod".into(),
+        graph.comod_edges.len().to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_edges.cofail".into(),
+        graph.cofail_edges.len().to_string(),
+    );
+    emit_completion_event(ctx, "harness_cluster_completed", "cluster", attrs);
     Ok(())
 }
 
@@ -214,6 +297,32 @@ pub fn run_flaky(
         .write_atomic(&out_path)
         .with_context(|| format!("write {}", out_path.display()))?;
 
+    let scored = graph
+        .nodes
+        .iter()
+        .filter(|n| n.flakiness_score.is_some())
+        .count();
+    let mut attrs = BTreeMap::new();
+    attrs.insert("specere.harness.n_files".into(), node_total.to_string());
+    attrs.insert(
+        "specere.harness.n_files_enriched".into(),
+        scored.to_string(),
+    );
+    attrs.insert("specere.harness.n_runs".into(), report.n_runs.to_string());
+    attrs.insert(
+        "specere.harness.flakes_flagged".into(),
+        report.flakes_flagged.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_edges.cofail".into(),
+        report.cofail_edges_emitted.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.insufficient_history".into(),
+        (report.n_runs < min_runs).to_string(),
+    );
+    emit_completion_event(ctx, "harness_flaky_completed", "flaky", attrs);
+
     if report.n_runs < min_runs {
         println!(
             "specere harness flaky: {} run(s) in history — need ≥ {} for PPMI (insufficient history)",
@@ -224,7 +333,7 @@ pub fn run_flaky(
     println!(
         "specere harness flaky: processed {} run(s); {}/{} node(s) scored; {} probable flake(s); {} cofail edge(s) (min_co_fail={})",
         report.n_runs,
-        graph.nodes.iter().filter(|n| n.flakiness_score.is_some()).count(),
+        scored,
         node_total,
         report.flakes_flagged,
         report.cofail_edges_emitted,
@@ -283,6 +392,21 @@ pub fn run_coverage(
         "specere harness coverage: enriched {}/{} node(s); {} cov_cooccur edge(s) (threshold={:.2})",
         report.nodes_enriched, node_total, report.edges_emitted, threshold
     );
+    let mut attrs = BTreeMap::new();
+    attrs.insert("specere.harness.n_files".into(), node_total.to_string());
+    attrs.insert(
+        "specere.harness.n_files_enriched".into(),
+        report.nodes_enriched.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_edges.cov_cooccur".into(),
+        report.edges_emitted.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.jaccard_threshold".into(),
+        format!("{threshold:.2}"),
+    );
+    emit_completion_event(ctx, "harness_coverage_completed", "coverage", attrs);
     Ok(())
 }
 
@@ -342,6 +466,21 @@ pub fn run_history(ctx: &specere_core::Ctx, min_comod_commits: u32) -> Result<()
             );
         }
     }
+    let mut attrs = BTreeMap::new();
+    attrs.insert("specere.harness.n_files".into(), node_total.to_string());
+    attrs.insert(
+        "specere.harness.n_files_enriched".into(),
+        report.nodes_enriched.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.n_edges.comod".into(),
+        report.comod_edges_emitted.to_string(),
+    );
+    attrs.insert(
+        "specere.harness.min_co_commits".into(),
+        min_comod_commits.to_string(),
+    );
+    emit_completion_event(ctx, "harness_history_completed", "history", attrs);
     Ok(())
 }
 
