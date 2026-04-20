@@ -80,6 +80,36 @@ pub struct HarnessFile {
     /// Populated by `specere harness provenance` (S2). `None` on first scan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provenance: Option<Provenance>,
+    /// Populated by `specere harness history` (S3). `None` on first scan or
+    /// when the repo has no git history (shallow clone, fresh init).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_metrics: Option<VersionMetrics>,
+}
+
+/// Per-file git-history metrics (FR-HM-020). Computed by
+/// `specere harness history` from `git log --numstat --follow`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct VersionMetrics {
+    /// Number of days since the file's introducing commit.
+    pub age_days: u32,
+    /// Total commits that touched the file (follows renames).
+    pub commits: u32,
+    /// Distinct author emails in the commit history.
+    pub authors: u32,
+    /// Normalised churn = (lines_added + lines_deleted) / commits, clamped at
+    /// 2 decimals. A churn of 0.0 means the file has been added once and
+    /// never edited; 50.0+ is a high-volatility hotspot candidate.
+    pub churn_rate: f64,
+    /// Most-recent commit timestamp (RFC-3339).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_touched: Option<String>,
+    /// `1` when one author wrote ≥ 80% of the lines; higher when ownership is
+    /// distributed. Rough proxy for bus-factor (FR-HM-022 hotspot scoring).
+    pub bus_factor: u32,
+    /// `hotspot_score = (churn_rate × log(commits + 1)) / (age_days + 1)`.
+    /// Surfaces files that are both volatile AND old enough to have earned
+    /// test-rot debt. Used for the top-N list in the CLI output.
+    pub hotspot_score: f64,
 }
 
 /// Who/what created this file, and when. Dual fields handle the common
@@ -130,6 +160,20 @@ pub struct DirectEdge {
     pub to_path: String,
 }
 
+/// Co-modification edge (FR-HM-021). Undirected; stored once per pair
+/// with `from < to` by node id.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ComodEdge {
+    pub from: String,
+    pub to: String,
+    pub from_path: String,
+    pub to_path: String,
+    /// Number of commits where both files changed together.
+    pub co_commits: u32,
+    /// PPMI score — `log2(p(a,b) / (p(a) · p(b)))`, truncated at 0.
+    pub ppmi: f64,
+}
+
 /// Schema-versioned graph container — one TOML file at
 /// `.specere/harness-graph.toml`. Nodes sorted by id; edges by `(from, to)`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -139,6 +183,9 @@ pub struct HarnessGraph {
     pub nodes: Vec<HarnessFile>,
     #[serde(default)]
     pub edges: Vec<DirectEdge>,
+    /// Populated by `specere harness history` (FR-HM-021).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comod_edges: Vec<ComodEdge>,
 }
 
 impl HarnessGraph {
@@ -146,6 +193,8 @@ impl HarnessGraph {
     pub fn write_atomic(&mut self, path: &Path) -> Result<()> {
         self.nodes.sort_by(|a, b| a.id.cmp(&b.id));
         self.edges
+            .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
+        self.comod_edges
             .sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
         let serialised = toml::to_string_pretty(self).context("serialise harness graph")?;
         if let Some(parent) = path.parent() {
@@ -176,6 +225,7 @@ impl HarnessGraph {
                 schema_version: 1,
                 nodes: Vec::new(),
                 edges: Vec::new(),
+                comod_edges: Vec::new(),
             });
         }
         let raw =
@@ -222,8 +272,10 @@ mod tests {
                 crate_name: Some("specere".into()),
                 test_names: vec!["test_a".into(), "test_b".into()],
                 provenance: None,
+                version_metrics: None,
             }],
             edges: vec![],
+            comod_edges: vec![],
         };
         let tmp = tempfile::NamedTempFile::new().unwrap();
         g.write_atomic(tmp.path()).unwrap();
@@ -243,17 +295,20 @@ mod tests {
                 crate_name: None,
                 test_names: Vec::new(),
                 provenance: None,
+                version_metrics: None,
             })
             .collect();
         let mut g1 = HarnessGraph {
             schema_version: 1,
             nodes: nodes.clone(),
             edges: Vec::new(),
+            comod_edges: Vec::new(),
         };
         let mut g2 = HarnessGraph {
             schema_version: 1,
             nodes: nodes.into_iter().rev().collect(),
             edges: Vec::new(),
+            comod_edges: Vec::new(),
         };
         let t1 = tempfile::NamedTempFile::new().unwrap();
         let t2 = tempfile::NamedTempFile::new().unwrap();
