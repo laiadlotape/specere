@@ -312,7 +312,8 @@ mod tests {
             assert!(
                 m[1] > 0.4,
                 "spec {} should remain SAT-leaning on pass-only stream: p_sat={:.4}",
-                s.id, m[1]
+                s.id,
+                m[1]
             );
         }
     }
