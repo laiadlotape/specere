@@ -162,6 +162,12 @@ pub struct FileEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkerEntry {
     pub path: PathBuf,
+    /// Backwards-compat: pre-v1.0 manifests did not emit this field. The
+    /// manifest loader backfills from the containing `[[units]].id`
+    /// after deserialisation (see `specere_manifest::Manifest::load_or_init`).
+    /// We accept an empty string on wire to avoid a hard `missing field`
+    /// error on old manifests.
+    #[serde(default)]
     pub unit_id: String,
     pub block_id: Option<String>,
     pub sha256: String,
